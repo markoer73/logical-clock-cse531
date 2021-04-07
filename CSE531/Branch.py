@@ -15,6 +15,8 @@ import multiprocessing
 from concurrent import futures
 from Util import setup_logger, MyLog
 
+import PySimpleGUI as sg                #  Better than CTRL+c
+
 import grpc
 import banking_pb2
 import banking_pb2_grpc
@@ -147,13 +149,21 @@ class Branch(banking_pb2_grpc.BankingServicer):
 
 # Currently waits for a day unless a CTRL+C is pressed, but it can be improved
 #
-def Wait_Loop():
-    try:
-        while True:
-            time.sleep(ONE_DAY.total_seconds())
-    except KeyboardInterrupt:
-        return
+def Wait_Loop(Branch, binding_address):
+    layout = [[sg.Text(f"Branch #{Branch} at Address {binding_address}")], [sg.Button("OK")]]
 
+    # Create the window
+    window = sg.Window("Demo", layout)
+
+    # Create an event loop
+    while True:
+        event, values = window.read()
+        # End program if user closes window or
+        # presses the OK button
+        if event == "OK" or event == sg.WIN_CLOSED:
+            break
+
+    window.close()
 
 # Spawn the Branch process server
 #
@@ -171,7 +181,7 @@ def Run_Branch(Branch, binding_address, THREAD_CONCURRENCY):
     server.start()
 
     MyLog(logger,'*** Press CTRL+C to exit the process when finished ***')
-    Wait_Loop()
+    Wait_Loop(Branch, binding_address)
 
     server.stop(None)
 
