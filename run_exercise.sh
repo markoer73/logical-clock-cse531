@@ -3,9 +3,12 @@ cd ..
 virtualenv logical-clock 2&>/dev/null
 source logical-clock/bin/activate
 python3 -m pip install --upgrade pip
+python3 -m pip install filelock
+python3 -m pip install distlib
 python3 -m pip install grpcio
 python3 -m pip install grpcio-tools
 python3 -m pip install protobuf
+python3 -m pip install pysimplegui
 
 cd logical-clock/CSE531
 
