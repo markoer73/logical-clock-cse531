@@ -9,6 +9,7 @@ python3 -m pip install grpcio
 python3 -m pip install grpcio-tools
 python3 -m pip install protobuf
 python3 -m pip install pysimplegui
+python3 -m pip install remi
 
 cd logical-clock/CSE531
 

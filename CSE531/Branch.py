@@ -11,11 +11,12 @@ import time
 import datetime
 import sys
 import multiprocessing
+import pysimplegui as sg                
+
+#  Better than CTRL+c
 
 from concurrent import futures
 from Util import setup_logger, MyLog
-
-import PySimpleGUI as sg                #  Better than CTRL+c
 
 import grpc
 import banking_pb2
