@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\rbanking.proto\x12\x03\x61pp\"\\\n\x12MsgDeliveryRequest\x12\x0c\n\x04S_ID\x18\x01 \x01(\x03\x12\x1a\n\x02OP\x18\x02 \x01(\x0e\x32\x0e.app.Operation\x12\x0e\n\x06\x41mount\x18\x03 \x01(\x03\x12\x0c\n\x04\x44_ID\x18\x04 \x01(\x03\"N\n\x13MsgDeliveryResponse\x12\n\n\x02ID\x18\x01 \x01(\x03\x12\x1b\n\x02RC\x18\x02 \x01(\x0e\x32\x0f.app.ReturnCode\x12\x0e\n\x06\x41mount\x18\x03 \x01(\x03*1\n\tOperation\x12\t\n\x05QUERY\x10\x00\x12\x0b\n\x07\x44\x45POSIT\x10\x01\x12\x0c\n\x08WITHDRAW\x10\x02*1\n\nReturnCode\x12\x0b\n\x07SUCCESS\x10\x00\x12\x0b\n\x07\x46\x41ILURE\x10\x01\x12\t\n\x05\x45RROR\x10\x02\x32M\n\x07\x42\x61nking\x12\x42\n\x0bMsgDelivery\x12\x17.app.MsgDeliveryRequest\x1a\x18.app.MsgDeliveryResponse\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\rbanking.proto\x12\x03\x61pp\"\\\n\x12MsgDeliveryRequest\x12\x0c\n\x04S_ID\x18\x01 \x01(\x03\x12\x1a\n\x02OP\x18\x02 \x01(\x0e\x32\x0e.app.Operation\x12\x0e\n\x06\x41mount\x18\x03 \x01(\x03\x12\x0c\n\x04\x44_ID\x18\x04 \x01(\x03\"N\n\x13MsgDeliveryResponse\x12\n\n\x02ID\x18\x01 \x01(\x03\x12\x1b\n\x02RC\x18\x02 \x01(\x0e\x32\x0f.app.ReturnCode\x12\x0e\n\x06\x41mount\x18\x03 \x01(\x03*\x82\x01\n\tOperation\x12\t\n\x05QUERY\x10\x00\x12\x0b\n\x07\x44\x45POSIT\x10\x01\x12\x0c\n\x08WITHDRAW\x10\x02\x12\x0e\n\nEV_REQUEST\x10\x03\x12\x0e\n\nEV_EXECUTE\x10\x04\x12\x0e\n\nPR_REQUEST\x10\x05\x12\x0e\n\nPR_EXECUTE\x10\x06\x12\x0f\n\x0bPR_RESPONSE\x10\x07*1\n\nReturnCode\x12\x0b\n\x07SUCCESS\x10\x00\x12\x0b\n\x07\x46\x41ILURE\x10\x01\x12\t\n\x05\x45RROR\x10\x02\x32M\n\x07\x42\x61nking\x12\x42\n\x0bMsgDelivery\x12\x17.app.MsgDeliveryRequest\x1a\x18.app.MsgDeliveryResponse\"\x00\x62\x06proto3'
 )
 
 _OPERATION = _descriptor.EnumDescriptor(
@@ -45,11 +45,36 @@ _OPERATION = _descriptor.EnumDescriptor(
       serialized_options=None,
       type=None,
       create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='EV_REQUEST', index=3, number=3,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='EV_EXECUTE', index=4, number=4,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='PR_REQUEST', index=5, number=5,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='PR_EXECUTE', index=6, number=6,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='PR_RESPONSE', index=7, number=7,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=196,
-  serialized_end=245,
+  serialized_start=197,
+  serialized_end=327,
 )
 _sym_db.RegisterEnumDescriptor(_OPERATION)
 
@@ -79,8 +104,8 @@ _RETURNCODE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=247,
-  serialized_end=296,
+  serialized_start=329,
+  serialized_end=378,
 )
 _sym_db.RegisterEnumDescriptor(_RETURNCODE)
 
@@ -88,6 +113,11 @@ ReturnCode = enum_type_wrapper.EnumTypeWrapper(_RETURNCODE)
 QUERY = 0
 DEPOSIT = 1
 WITHDRAW = 2
+EV_REQUEST = 3
+EV_EXECUTE = 4
+PR_REQUEST = 5
+PR_EXECUTE = 6
+PR_RESPONSE = 7
 SUCCESS = 0
 FAILURE = 1
 ERROR = 2
@@ -223,8 +253,8 @@ _BANKING = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=298,
-  serialized_end=375,
+  serialized_start=380,
+  serialized_end=457,
   methods=[
   _descriptor.MethodDescriptor(
     name='MsgDelivery',

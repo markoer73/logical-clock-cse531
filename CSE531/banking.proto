@@ -13,22 +13,27 @@ service Banking {
 }
 
 enum Operation {
-	QUERY 		= 0;		// Query amount of $$
-	DEPOSIT		= 1;		// Deposit amounf of $$
-	WITHDRAW	= 2;		// Withdraw amount of $$
+	QUERY 			= 0;		// Query amount of $$
+	DEPOSIT			= 1;		// Deposit amounf of $$
+	WITHDRAW		= 2;		// Withdraw amount of $$
+	EV_REQUEST		= 3;		// Event_Request operation - clock update
+	EV_EXECUTE		= 4;		// Event_Execute operation - clock update
+	PR_REQUEST		= 5;		// Propagate_Request operation - clock update
+	PR_EXECUTE		= 6;		// Propagate_EXECUTE operation - clock update
+	PR_RESPONSE		= 7;		// Propagate_Response operation - clock update
 }
 
 enum ReturnCode {
-	SUCCESS 	= 0;		// Query, Deposit, or Withdraw succeeded
-	FAILURE		= 1;		// Query, Deposit, or Withdraw failed
-	ERROR		= 2;		// Error in the operation
+	SUCCESS 		= 0;		// Query, Deposit, or Withdraw succeeded
+	FAILURE			= 1;		// Query, Deposit, or Withdraw failed
+	ERROR			= 2;		// Error in the operation
 }
 
 message MsgDeliveryRequest  {
-	int64 S_ID	= 1;		// Branch or Client Source ID
-	Operation OP    = 2;		// Operation requested
+	int64 S_ID		= 1;		// Branch or Client Source ID
+	Operation OP	= 2;		// Operation requested
 	int64 Amount 	= 3;		// Amount of $$ involved
-	int64 D_ID	= 4;		// Branch or Client Destination ID
+	int64 D_ID		= 4;		// Branch or Client Destination ID
 }
 
 message MsgDeliveryResponse {
@@ -36,4 +41,3 @@ message MsgDeliveryResponse {
 	ReturnCode RC	= 2;		// Return Code from the operation
 	int64 Amount	= 3;		// Amound of $$ involved
 }
-
