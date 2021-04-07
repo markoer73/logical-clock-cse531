@@ -19,7 +19,11 @@ import grpc
 import banking_pb2
 import banking_pb2_grpc
 
-from pysimplegui import *                #  Better than CTRL+c
+try:
+    import PySimpleGUI as sg                #  Better than CTRL+c
+except ImportError:
+    sg = NotImplemented    
+
 
 ONE_DAY = datetime.timedelta(days=1)
 logger = setup_logger("Branch")
@@ -150,22 +154,29 @@ class Branch(banking_pb2_grpc.BankingServicer):
 # Currently waits for a day unless a CTRL+C is pressed, but it can be improved
 #
 def Wait_Loop(Branch, binding_address):
-    #sg = pysimplegui
-    
-    #layout = [[sg.Text(f"Branch #{Branch} at Address {binding_address}")], [sg.Button("OK")]]
 
-    # Create the window
-    #window = sg.Window("Demo", layout)
+    if (sg != NotImplemented):
+        layout = [[sg.Text(f"Branch #{Branch} at Address {binding_address}")], [sg.Button("OK")]]
 
-    # Create an event loop
-    while True:
-        event, values = window.read()
-        # End program if user closes window or
-        # presses the OK button
-        if event == "OK" or event == sg.WIN_CLOSED:
-            break
+        # Create the window
+        window = sg.Window("Demo", layout)
 
-    window.close()
+        # Create an event loop
+        while True:
+            event, values = window.read()
+            # End program if user closes window or
+            # presses the OK button
+            if event == "OK" or event == sg.WIN_CLOSED:
+                break
+
+        window.close()
+    else
+        try:
+            while True:
+                time.sleep(ONE_DAY.total_seconds())
+        except KeyboardInterrupt:
+            return
+
 
 # Spawn the Branch process server
 #
