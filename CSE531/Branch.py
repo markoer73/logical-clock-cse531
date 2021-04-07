@@ -11,9 +11,6 @@ import time
 import datetime
 import sys
 import multiprocessing
-import pysimplegui as sg                
-
-#  Better than CTRL+c
 
 from concurrent import futures
 from Util import setup_logger, MyLog
@@ -21,6 +18,8 @@ from Util import setup_logger, MyLog
 import grpc
 import banking_pb2
 import banking_pb2_grpc
+
+from pysimplegui import *                #  Better than CTRL+c
 
 ONE_DAY = datetime.timedelta(days=1)
 logger = setup_logger("Branch")
@@ -151,10 +150,12 @@ class Branch(banking_pb2_grpc.BankingServicer):
 # Currently waits for a day unless a CTRL+C is pressed, but it can be improved
 #
 def Wait_Loop(Branch, binding_address):
-    layout = [[sg.Text(f"Branch #{Branch} at Address {binding_address}")], [sg.Button("OK")]]
+    #sg = pysimplegui
+    
+    #layout = [[sg.Text(f"Branch #{Branch} at Address {binding_address}")], [sg.Button("OK")]]
 
     # Create the window
-    window = sg.Window("Demo", layout)
+    #window = sg.Window("Demo", layout)
 
     # Create an event loop
     while True:
