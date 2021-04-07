@@ -170,7 +170,7 @@ def Wait_Loop(Branch, binding_address):
                 break
 
         window.close()
-    else
+    else:
         try:
             while True:
                 time.sleep(ONE_DAY.total_seconds())
