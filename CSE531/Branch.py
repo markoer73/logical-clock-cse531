@@ -156,10 +156,10 @@ class Branch(banking_pb2_grpc.BankingServicer):
 def Wait_Loop(Branch, binding_address):
 
     if (sg != NotImplemented):
-        layout = [[sg.Text(f"Branch #{Branch.PID} at Address {binding_address}", size=(60, 1), justification="center")], [sg.Button("Close")]]
+        layout = [[sg.Text(f"Branch #{Branch.pid} at Address {binding_address}", size=(60, 1), justification="center")], [sg.Button("Close")]]
 
         # Create the window
-        window = sg.Window(f"Branch #{Branch.PID}", layout)
+        window = sg.Window(f"Branch #{Branch.pid}", layout)
 
         # Create an event loop
         while True:
