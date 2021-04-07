@@ -1,4 +1,4 @@
-sudo apt install python3-tk
+#sudo apt install python3-tk
 python3 -m pip install virtualenv
 cd ..
 virtualenv logical-clock 2&>/dev/null
