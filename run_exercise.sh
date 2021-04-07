@@ -1,3 +1,4 @@
+sudo apt install python3-tk
 python3 -m pip install virtualenv
 cd ..
 virtualenv logical-clock 2&>/dev/null
@@ -9,7 +10,6 @@ python3 -m pip install grpcio
 python3 -m pip install grpcio-tools
 python3 -m pip install protobuf
 python3 -m pip install pysimplegui
-#python3 -m pip install remi
 
 cd logical-clock/CSE531
 
