@@ -153,13 +153,13 @@ class Branch(banking_pb2_grpc.BankingServicer):
 
 # Currently waits for a day unless a CTRL+C is pressed, but it can be improved
 #
-def Wait_Loop(Branch, binding_address):
+def Wait_Loop(Branch):
 
     if (sg != NotImplemented):
-        layout = [[sg.Text(f"Branch #{Branch.pid} at Address {binding_address}", size=(60, 1), justification="center")], [sg.Button("Close")]]
+        layout = [[sg.Text(f"Branch #{Branch.id} at Address {Branch.bind_address}", size=(60, 1), justification="center")], [sg.Button("Close")]]
 
         # Create the window
-        window = sg.Window(f"Branch #{Branch.pid}", layout)
+        window = sg.Window(f"Branch #{Branch.id}", layout)
 
         # Create an event loop
         while True:
@@ -194,7 +194,7 @@ def Run_Branch(Branch, binding_address, THREAD_CONCURRENCY):
     server.start()
 
     MyLog(logger,'*** Press CTRL+C to exit the process when finished ***')
-    Wait_Loop(Branch, binding_address)
+    Wait_Loop(Branch)
 
     server.stop(None)
 
