@@ -44,6 +44,8 @@ class Branch(banking_pb2_grpc.BankingServicer):
         self.recvMsg = list()
         # Binded address
         self.bind_address = str
+        # Local logical clock
+        self.logical_clock = 0
 
     def MsgDelivery(self, request, context):
         self.recvMsg.append(request)
