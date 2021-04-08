@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "args": ["-i ${cwd}/CSE531/grpc.json", "-o ${cwd}/CSE531/grpc_output.json"],
+            "args": ["-i ${cwd}/CSE531/grpc1.json", "-o ${cwd}/CSE531/grpc_output1.json"],
             "console": "integratedTerminal"
             //"console": "externalTerminal"
         }

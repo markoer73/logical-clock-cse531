@@ -323,7 +323,7 @@ def Run_Branch(Branch, THREAD_CONCURRENCY):
     server.add_insecure_port(Branch.bind_address)
     server.start()
 
-    if (sg != NotImplemented):
+    if (sg == NotImplemented):
         MyLog(logger,'*** Press CTRL+C to exit the process when finished ***')
     
     Wait_Loop(Branch)
