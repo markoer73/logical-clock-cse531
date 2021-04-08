@@ -76,7 +76,7 @@ class Customer:
     # and output to the JSON file
     #
     def executeEvents(self, output_file):
-        """Execute customer'S events."""
+        """Execute customer's events."""
         
         # DEBUG
         #MyLog(logger,f'Executing events for Customer #{self.id}')
@@ -97,22 +97,20 @@ class Customer:
                     )
                 )
                 
-                MyLog(logger,
-                    f'Customer #{self.id} sent request {request_id} to Branch #{response.ID} '
-                    f'interface {get_operation_name(request_operation)} result {get_result_name(response.RC)} '
-                    f'money {response.Amount}')
+                LogMessage = (
+                    f'Customer #{self.id} sent Request ID {request_id} to Branch #{self.event.id} - '
+                    f'Operation: {get_operation_name(request_operation)} - Result: {get_result_name(response.RC)} - '
+                    f'New balance: {response.Amount}')
                 values = {
                     'interface': get_operation_name(request_operation),
                     'result': get_result_name(response.RC),
                 }
                 
+                MyLog(logger, LogMessage)
+
                 if (sg != NotImplemented):
                     if (self.window != None):
-                        print(
-                            f'Customer #{self.id} sent request {request_id} to Branch #{response.ID} '
-                            f'interface {get_operation_name(request_operation)} result {get_result_name(response.RC)} '
-                            f'money {response.Amount}'
-                        )
+                        print(LogMessage)
                         self.window.Refresh()
 
                 if request_operation == banking_pb2.QUERY:
@@ -166,7 +164,8 @@ class Customer:
                     # End program if user closes window or
                     # presses the Close button
                     if event == "Close" or event == sg.WIN_CLOSED:
-                        MyLog(logger,f'Client customer #{self.id} connecting to server {Branch_address} did not execute events.')
+                        #MyLog(logger,f'Client customer #{self.id} connecting to server {Branch_address} did not execute events.')
+                        MyLog(logger,f'Client customer #{self.id} connecting to server {Branch_address} closing windows.')
                         break
                     if event == "Run":
                         Customer.executeEvents(self, output_file)

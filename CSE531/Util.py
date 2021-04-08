@@ -1,6 +1,8 @@
 import logging
 import sys
 
+#branches_addresses_ids = []
+
 # Global logger
 def setup_logger (name):
     logger = logging.getLogger(name)

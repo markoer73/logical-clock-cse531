@@ -136,24 +136,25 @@ def main():
 
     MyLog(logger, f'*** Starting Processes for Servers/Branches ***')
 
+    # Reserve the addresses for Branches
     for curr_branch in branches:
-#        with Reserve_Port() as curr_port:
-            curr_port = Reserve_Port()
-            bind_address = '[::]:{}'.format(curr_port)
-        
-#           DEBUG
-#            MyLog(logger, f'Reserved {bind_address} for Branch #{curr_branch.id}...')
-#            sys.stdout.flush()
-        
-            worker = multiprocessing.Process(name=f'Branch-{curr_branch.id}', target=Run_Branch,
-                                                args=(curr_branch,bind_address,THREAD_CONCURRENCY))
-            worker.start()
-            workers.append(worker)
-            # save branch bind address for the customers and other branches to know
-            branches_addresses_ids.append ([curr_branch.id, bind_address])
+        curr_port = Reserve_Port()
+        curr_branch.bind_address = '[::]:{}'.format(curr_port)
+        # save branch bind address for the customers and other branches to know
+        branches_addresses_ids.append ([curr_branch.id, curr_branch.bind_address])
 
-            MyLog(logger, f'Started branch \"{worker.name}\" on initial balance {curr_branch.balance}), '
-                          f'with PID {worker.pid} at address {bind_address} successfully')
+    # Copy the list of all the branches and PIDs to all the Branches' list
+    for curr_branch in branches:
+        curr_branch.branchList = branches_addresses_ids[:]
+
+    for curr_branch in branches:
+        worker = multiprocessing.Process(name=f'Branch-{curr_branch.id}', target=Run_Branch,
+                                            args=(curr_branch,THREAD_CONCURRENCY))
+        worker.start()
+        workers.append(worker)
+
+        MyLog(logger, f'Started branch \"{worker.name}\" on initial balance {curr_branch.balance}), '
+                        f'with PID {worker.pid} at address {curr_branch.bind_address} successfully')
 
     if (sg == NotImplemented):
         # Wait some seconds before initialising the clients, to give time the servers to start

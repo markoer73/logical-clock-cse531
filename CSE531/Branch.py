@@ -50,10 +50,12 @@ class Branch(banking_pb2_grpc.BankingServicer):
         self.recvMsg = list()
         # Binded address
         self.bind_address = str
+        # the list of Branches including IDs and Addresses
+        self.branchList = list()
         # GUI Window handle, if used
         self.window = None
         # Local logical clock
-        self.logical_clock = 0
+        self.local_clock = 0
 
     def MsgDelivery(self, request, context):
 
@@ -75,9 +77,14 @@ class Branch(banking_pb2_grpc.BankingServicer):
             response_result, balance_result = self.Withdraw(request.Amount)
             #time.sleep(SLEEP_SECONDS)
 
+        if request.D_ID == DO_NOT_PROPAGATE:
+            CustomerText = 'another Branch'
+        else:
+            CustomerText = (f'Customer {request.D_ID}')
         ResponseText = (
-            f'Branch {self.id} received request ID {request.S_ID} from Customer {request.D_ID} - '
+            f'Branch {self.id} received request ID {request.S_ID} from {CustomerText} - '
             f'Operation: {get_operation_name(request.OP)} - '
+            f'Amount: {request.Amount} - '
             f'Result: {get_result_name(response_result)} - '
             f'New balance: {balance_result}'
         )
@@ -99,7 +106,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
         )
     
         ResponseText = (
-            f'Branch {self.id} response to Customer request ID {request.S_ID} - '
+            f'Branch {self.id} sent response to request ID {request.S_ID} from {CustomerText} - '
             f'Result: {get_result_name(response_result)} - '
             f'New balance: {balance_result}' 
         )    
@@ -147,61 +154,118 @@ class Branch(banking_pb2_grpc.BankingServicer):
         return banking_pb2.SUCCESS, new_balance
 
     def Propagate_Deposit(self, request_id, amount):
-        MyLog(logger,f'Propagate {get_operation_name(banking_pb2.DEPOSIT)} id {request_id} amount {amount} to other branches')
-        if not self.stubList:
-            self.Populate_Stub_List()
-        for stub in self.stubList:
 
-            if (sg != NotImplemented):
-                if (self.window != None):
-                    print(f'Propagate {get_operation_name(banking_pb2.DEPOSIT)} id {request_id} amount {amount} to other branches')
-                    self.window.Refresh()
+        for stub in self.branchList:
 
-            response = stub.MsgDelivery(
-                banking_pb2.MsgDeliveryRequest(
-                    S_ID=request_id,
-                    OP=banking_pb2.DEPOSIT,
-                    Amount=amount,
-                    D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
-                )
-            )
-            MyLog(logger,
-                f'Branch {self.id} sent request {request_id} to other Branches -'
-                f'operation {get_operation_name(banking_pb2.DEPOSIT)} result {get_result_name(response.RC)} '
-                f'money {response.Amount}')
+            if self.id != stub[0]:
+
+                LogMessage = (f'Propagate {get_operation_name(banking_pb2.DEPOSIT)} Request id {request_id} Amount {amount} to Branch #{stub[0]} @{stub[1]}')
+                MyLog(logger, LogMessage)
+                        
+                if (sg != NotImplemented):
+                    if (self.window != None):
+                        print(LogMessage)
+                        self.window.Refresh()
+
+                try:
+                    msgStub = banking_pb2_grpc.BankingStub(grpc.insecure_channel(stub[1]))
+                    response = msgStub.MsgDelivery(
+                        banking_pb2.MsgDeliveryRequest(
+                            S_ID=request_id,
+                            OP=banking_pb2.DEPOSIT,
+                            Amount=amount,
+                            D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
+                        )
+                    )
+                    LogMessage = (f'Branch {self.id} sent request {request_id} to Branch @{stub[1]} - '
+                        f'Operation: {get_operation_name(banking_pb2.DEPOSIT)} - Result: {get_result_name(response.RC)} - '
+                        f'New balance: {response.Amount}')
+                    MyLog(logger, LogMessage)
+                    if (sg != NotImplemented):
+                        if (self.window != None):
+                            print (LogMessage)
+                            self.window.Refresh()
+
+                except grpc.RpcError as rpc_error_call:
+                    code = rpc_error_call.code()
+                    details = rpc_error_call.details()
+
+                    if (code.name == "UNAVAILABLE"):
+                        ErrorMessage = (f'Error on Request #{request_id}: Branch #{self.id} likely unavailable - Code: {code} - Details: {details}')
+                    else:
+                        ErrorMessage = (f'Error on Request #{request_id}: Code: {code} - Details: {details}')
+
+                    MyLog(logger, ErrorMessage)
+                    if (sg != NotImplemented):
+                        if (self.window != None):
+                            print(ErrorMessage)
+                            self.window.Refresh()
+
 
     def Propagate_Withdraw(self, request_id, amount):
-        MyLog(logger,f'Propagate {get_operation_name(banking_pb2.WITHDRAW)} id {request_id} amount {amount} to other branches')
-        if not self.stubList:
-            self.Populate_Stub_List()
+        
         for stub in self.stubList:
 
-            if (sg != NotImplemented):
-                if (self.window != None):
-                    print(f'Propagate {get_operation_name(banking_pb2.WITHDRAW)} id {request_id} amount {amount} to other branches')
-                    self.window.Refresh()
+            if self.id != stub[0]:
 
-            response = stub.MsgDelivery(
-                banking_pb2.MsgDeliveryRequest(
-                    S_ID=request_id,
-                    OP=banking_pb2.WITHDRAW,
-                    Amount=amount,
-                    D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
-                )
-            )
-            MyLog(logger,
-                f'Branch {self.id} sent request {request_id} to other Branches -'
-                f'operation {get_operation_name(banking_pb2.WITHDRAW)} result {get_result_name(response.RC)} '
-                f'money {response.Amount}')
+                LogMessage = (f'Propagating {get_operation_name(banking_pb2.WITHDRAW)} Request id {request_id} Amount {amount} to Branch #{stub[0]} @{stub[1]}')
+                MyLog(logger, LogMessage)
+                        
+                if (sg != NotImplemented):
+                    if (self.window != None):
+                        print(LogMessage)
+                        self.window.Refresh()
+
+                try:
+                    msgStub = banking_pb2_grpc.BankingStub(grpc.insecure_channel(stub[1]))
+                    response = msgStub.MsgDelivery(
+                        banking_pb2.MsgDeliveryRequest(
+                            S_ID=request_id,
+                            OP=banking_pb2.WITHDRAW,
+                            Amount=amount,
+                            D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
+                        )
+                    )
+
+                    LogMessage = (f'Branch {self.id} sent request {request_id} to Branch @{stub[1]} - '
+                        f'Operation: {get_operation_name(banking_pb2.WITHDRAW)} - Result: {get_result_name(response.RC)} - '
+                        f'New balance: {response.Amount}')
+                    MyLog(logger, LogMessage)
+                    if (sg != NotImplemented):
+                        if (self.window != None):
+                            print (LogMessage)
+                            self.window.Refresh()
+
+                except grpc.RpcError as rpc_error_call:
+                    code = rpc_error_call.code()
+                    details = rpc_error_call.details()
+
+                    if (code.name == "UNAVAILABLE"):
+                        ErrorMessage = (f'Error on Request #{request_id}: Branch #{self.id} likely unavailable - Code: {code} - Details: {details}')
+                    else:
+                        ErrorMessage = (f'Error on Request #{request_id}: Code: {code} - Details: {details}')
+
+                    MyLog(logger,
+                        ErrorMessage
+                    )
+                    if (sg != NotImplemented):
+                        if (self.window != None):
+                            print(ErrorMessage)
+                            self.window.Refresh()
+
 
     def Populate_Stub_List(self):
+
         if len(self.stubList) == len(self.branches):  # stub list already initialized
             return
-        for b in self.branches:
-            if b != self.id:
-                branch_address = self.bind_address
-                MyLog(logger,f'Initializing branch to branch stub at {branch_address}')
-                self.stubList.append(banking_pb2_grpc.BankingStub(grpc.insecure_channel(branch_address)))
+
+        len_bids = len(branches_addresses_ids)
+        for i in range(len_bids):
+            bids_id = branches_addresses_ids[i][0]
+            if bids_id != self.id:
+                MyLog(logger,f'Initializing Branch #{self.id} to Branch #{branches_addresses_ids[i][0]} stub at {branches_addresses_ids [i][1]}')
+                self.stubList.append(banking_pb2_grpc.BankingStub(grpc.insecure_channel(branches_addresses_ids [i][1])))
+
 
 
 # If PySimpleGUI/TK are installed, launches a window in the Windows' Manager.
@@ -229,14 +293,15 @@ def Wait_Loop(Branch):
 
 # Spawn the Branch process server
 #
-def Run_Branch(Branch, binding_address, THREAD_CONCURRENCY):
+def Run_Branch(Branch, THREAD_CONCURRENCY):
     """Start a server (branch) in a subprocess."""
-    MyLog(logger,f'Initialising branch at {binding_address}...')
+
+    MyLog(logger,f'Initialising branch at {Branch.bind_address}...')
 
     options = (('grpc.so_reuseport', 1),)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=THREAD_CONCURRENCY,), options=options)
 
-    Branch.bind_address = binding_address
+    #Branch.bind_address = binding_address
     banking_pb2_grpc.add_BankingServicer_to_server(Branch, server)
 
     if (sg != NotImplemented):
@@ -255,10 +320,12 @@ def Run_Branch(Branch, binding_address, THREAD_CONCURRENCY):
 
         Branch.window.refresh()
 
-    server.add_insecure_port(binding_address)
+    server.add_insecure_port(Branch.bind_address)
     server.start()
 
-    MyLog(logger,'*** Press CTRL+C to exit the process when finished ***')
+    if (sg != NotImplemented):
+        MyLog(logger,'*** Press CTRL+C to exit the process when finished ***')
+    
     Wait_Loop(Branch)
 
     if (sg != NotImplemented):
