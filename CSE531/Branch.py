@@ -56,28 +56,39 @@ class Branch(banking_pb2_grpc.BankingServicer):
         self.logical_clock = 0
 
     def MsgDelivery(self, request, context):
+
+        # Keep a copy of the requests
         self.recvMsg.append(request)
+
         balance_result = None
         response_result = None
+        
         if request.OP == banking_pb2.QUERY:
-            time.sleep(SLEEP_SECONDS)
+            #time.sleep(SLEEP_SECONDS)
             balance_result = self.Query()
+        
         if request.OP == banking_pb2.DEPOSIT:
             balance_result = self.Deposit(request.Amount)
+            #time.sleep(SLEEP_SECONDS)
+        
         if request.OP == banking_pb2.WITHDRAW:
             response_result, balance_result = self.Withdraw(request.Amount)
+            #time.sleep(SLEEP_SECONDS)
+
+        ResponseText = (
+            f'Branch {self.id} received request ID {request.S_ID} from Customer {request.D_ID} '
+            f'operation: {get_operation_name(request.OP)} result {get_result_name(response_result)} '
+            f'balance {balance_result}'
+        )
         MyLog(logger,
-            f'Branch {self.id} response to Customer request {request.S_ID} '
-            f'interface {get_operation_name(request.OP)} result {get_result_name(response_result)} '
-            f'balance {balance_result}' )
+            ResponseText
+        )
 
         if (sg != NotImplemented):
             if (self.window != None):
-                oldtext = self.window['-RECEIVED-']
-                self.window['-RECEIVED-'].update (f'{oldtext}\n' 
-                f'Received {get_operation_name(request.OP)} '
-                f'id {request.S_ID} result {get_result_name(response_result)} '
-                f'balance {balance_result}' )
+                print(
+                    ResponseText
+                )
                 self.window.Refresh()
 
         response = banking_pb2.MsgDeliveryResponse(
@@ -85,7 +96,23 @@ class Branch(banking_pb2_grpc.BankingServicer):
             RC=response_result,
             Amount=balance_result,
         )
-        
+    
+        ResponseText = (
+            f'Branch {self.id} response to Customer request {ID} '
+            f'Response result {get_result_name(RC)} '
+            f'balance {Amount}' 
+        )    
+        MyLog(logger,
+            ResponseText
+        )
+
+        if (sg != NotImplemented):
+            if (self.window != None):
+                print(
+                    ResponseText
+                )
+                self.window.Refresh()
+
         # If DO_NOT_PROPAGATE it means it has come from another branch and it must not be
         # spread further.  Also, no need to propagate query operations.
         if request.D_ID != DO_NOT_PROPAGATE and request.OP == banking_pb2.DEPOSIT:
@@ -125,9 +152,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
 
             if (sg != NotImplemented):
                 if (self.window != None):
-                    oldtext = self.window['-DISPATCHED-']
-                    self.window['-DISPATCHED-'].update (f'{oldtext}\n' 
-                        f'Propagate {get_operation_name(banking_pb2.DEPOSIT)} id {request_id} amount {amount} to other branches')
+                    print(f'Propagate {get_operation_name(banking_pb2.DEPOSIT)} id {request_id} amount {amount} to other branches')
                     self.window.Refresh()
 
             response = stub.MsgDelivery(
@@ -151,9 +176,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
 
             if (sg != NotImplemented):
                 if (self.window != None):
-                    oldtext = self.window['-DISPATCHED-']
-                    self.window['-DISPATCHED-'].update (f'{oldtext}\n' 
-                        f'Propagate {get_operation_name(banking_pb2.WITHDRAW)} id {request_id} amount {amount} to other branches')
+                    print(f'Propagate {get_operation_name(banking_pb2.WITHDRAW)} id {request_id} amount {amount} to other branches')
                     self.window.Refresh()
 
             response = stub.MsgDelivery(
@@ -217,17 +240,15 @@ def Run_Branch(Branch, binding_address, THREAD_CONCURRENCY):
     if (sg != NotImplemented):
         #sg.set_options(border_width=2, margins=(10, 10), element_padding=(10, 10))
         layout = [
-            [sg.Text(f"Branch #{Branch.id} at Address {Branch.bind_address}", justification="center")],
-            [sg.Text('Received events: ', auto_size_text=True, key='-RECEIVED-')],
-            [sg.Text('Dispatched events: ', auto_size_text=True, key='-DISPATCHED-')],
+            [sg.Text(f"Branch #{Branch.id} at Address {Branch.bind_address}", size=(60,1), justification="center")],
+            [sg.Output(size=(80,15))],
             [sg.Button("Close", tooltip='Terminates Branch')]
         ]
 
         # Create the window
+        sg.theme('Dark Blue 3')
         Branch.window = sg.Window(f"Branch #{Branch.id}"
             , layout
-            #, finalize=True
-            , size=(300, 300)
             , location=(1000+100*Branch.id, 100*Branch.id)
         )
 

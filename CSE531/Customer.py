@@ -53,29 +53,21 @@ class Customer:
         self.stub = banking_pb2_grpc.BankingStub(grpc.insecure_channel(Branch_address))
 
         if (sg != NotImplemented):
-            #sg.set_options(border_width=2, margins=(10, 10), element_padding=(10, 10))
             layout = [
-                [sg.Text(f"Customer #{self.id} at Address {Branch_address}", justification="center")],
-                [sg.Multiline('Operations: ', key='-OPERATIONS-')],
+                [sg.Text(f"Customer #{self.id} -> To Branch @ {Branch_address}", size=(60,1), justification="center")],
+                [sg.Text("Operations Loaded:", size=(60,1), justification="left")],
+                [sg.Listbox(values=self.events, size=(60, 3))],
+                [sg.Output(size=(80,12))],
                 [sg.Button("Run", tooltip='Start Customer\'s Operations')],
                 [sg.Button("Close", tooltip='Terminate Customer')]
             ]
 
             # Create the window
             sg.theme('Dark Green 5')
-            self.window = sg.Window(f"Customer #{self.id}", layout
-                , size=(None, None)
+            self.window = sg.Window(f"Customer #{self.id}"
+                , layout
                 , location=(100*(self.id+1),100*self.id)
-                #, finalize=True
             )
-
-            # Move the window to the upper right corner of the screen plus Branch counter
-            #w, h = self.window.get_screen_dimensions()
-            #newx = w/3 + (self.id - 1) * 30
-            #newy = h/3 + (self.id - 1) * 20
-            #self.window.move(newx, newy)
-            #self.window.set_alpha(.9)
-            #self.window.refresh()            
 
         client = grpc.server(futures.ThreadPoolExecutor(max_workers=THREAD_CONCURRENCY,),)
         #banking_pb2_grpc.add_BankingServicer_to_server(Customer, client)
@@ -116,11 +108,24 @@ class Customer:
                 if request_operation == banking_pb2.QUERY:
                     values['money'] = response.Amount
                 record['recv'].append(values)
+                
+                if (sg != NotImplemented):
+                    if (self.window != None):
+                        print(
+                            f'Customer #{self.id} sent request {request_id} to Branch #{response.ID} '
+                            f'interface {get_operation_name(request_operation)} result {get_result_name(response.RC)} '
+                            f'money {response.Amount}'
+                        )
+                        self.window.Refresh()
             
             except:
                 MyLog(logger,
                     f'Branch #{request_id} not running!'
                 )
+                if (sg != NotImplemented):
+                    if (self.window != None):
+                        print(f'Branch id {request_id} not running - messaging failed!')
+                        self.window.Refresh()
 
         if record['recv']:
             # DEBUG
@@ -157,7 +162,7 @@ class Customer:
                     if event == "Run":
                         Customer.executeEvents(self, output_file)
                         MyLog(logger,f'Client customer #{self.id} connecting to server {Branch_address} exiting successfully.')
-                        break
+                        #break
 
                 self.window.close()
         else:
