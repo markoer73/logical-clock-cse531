@@ -406,8 +406,6 @@ class Call(six.with_metaclass(abc.ABCMeta, RpcContext)):
 class ClientCallDetails(six.with_metaclass(abc.ABCMeta)):
     """Describes an RPC to be invoked.
 
-    This is an EXPERIMENTAL API.
-
     Attributes:
       method: The method name of the RPC.
       timeout: An optional duration of time in seconds to allow for the RPC.
@@ -422,10 +420,7 @@ class ClientCallDetails(six.with_metaclass(abc.ABCMeta)):
 
 
 class UnaryUnaryClientInterceptor(six.with_metaclass(abc.ABCMeta)):
-    """Affords intercepting unary-unary invocations.
-
-    This is an EXPERIMENTAL API.
-    """
+    """Affords intercepting unary-unary invocations."""
 
     @abc.abstractmethod
     def intercept_unary_unary(self, continuation, client_call_details, request):
@@ -459,10 +454,7 @@ class UnaryUnaryClientInterceptor(six.with_metaclass(abc.ABCMeta)):
 
 
 class UnaryStreamClientInterceptor(six.with_metaclass(abc.ABCMeta)):
-    """Affords intercepting unary-stream invocations.
-
-    This is an EXPERIMENTAL API.
-    """
+    """Affords intercepting unary-stream invocations."""
 
     @abc.abstractmethod
     def intercept_unary_stream(self, continuation, client_call_details,
@@ -489,16 +481,14 @@ class UnaryStreamClientInterceptor(six.with_metaclass(abc.ABCMeta)):
             An object that is both a Call for the RPC and an iterator of
             response values. Drawing response values from the returned
             Call-iterator may raise RpcError indicating termination of
-            the RPC with non-OK status.
+            the RPC with non-OK status. This object *should* also fulfill the
+            Future interface, though it may not.
         """
         raise NotImplementedError()
 
 
 class StreamUnaryClientInterceptor(six.with_metaclass(abc.ABCMeta)):
-    """Affords intercepting stream-unary invocations.
-
-    This is an EXPERIMENTAL API.
-    """
+    """Affords intercepting stream-unary invocations."""
 
     @abc.abstractmethod
     def intercept_stream_unary(self, continuation, client_call_details,
@@ -532,10 +522,7 @@ class StreamUnaryClientInterceptor(six.with_metaclass(abc.ABCMeta)):
 
 
 class StreamStreamClientInterceptor(six.with_metaclass(abc.ABCMeta)):
-    """Affords intercepting stream-stream invocations.
-
-    This is an EXPERIMENTAL API.
-    """
+    """Affords intercepting stream-stream invocations."""
 
     @abc.abstractmethod
     def intercept_stream_stream(self, continuation, client_call_details,
@@ -562,7 +549,8 @@ class StreamStreamClientInterceptor(six.with_metaclass(abc.ABCMeta)):
           An object that is both a Call for the RPC and an iterator of
           response values. Drawing response values from the returned
           Call-iterator may raise RpcError indicating termination of
-          the RPC with non-OK status.
+          the RPC with non-OK status. This object *should* also fulfill the
+          Future interface, though it may not.
         """
         raise NotImplementedError()
 
@@ -797,10 +785,10 @@ class UnaryStreamMultiCallable(six.with_metaclass(abc.ABCMeta)):
             grpc.compression.Gzip. This is an EXPERIMENTAL option.
 
         Returns:
-            An object that is both a Call for the RPC and an iterator of
-            response values. Drawing response values from the returned
-            Call-iterator may raise RpcError indicating termination of the
-            RPC with non-OK status.
+            An object that is a Call for the RPC, an iterator of response
+            values, and a Future for the RPC. Drawing response values from the
+            returned Call-iterator may raise RpcError indicating termination of
+            the RPC with non-OK status.
         """
         raise NotImplementedError()
 
@@ -936,10 +924,10 @@ class StreamStreamMultiCallable(six.with_metaclass(abc.ABCMeta)):
             grpc.compression.Gzip. This is an EXPERIMENTAL option.
 
         Returns:
-            An object that is both a Call for the RPC and an iterator of
-            response values. Drawing response values from the returned
-            Call-iterator may raise RpcError indicating termination of the
-            RPC with non-OK status.
+            An object that is a Call for the RPC, an iterator of response
+            values, and a Future for the RPC. Drawing response values from the
+            returned Call-iterator may raise RpcError indicating termination of
+            the RPC with non-OK status.
         """
         raise NotImplementedError()
 
@@ -1349,10 +1337,7 @@ class ServiceRpcHandler(six.with_metaclass(abc.ABCMeta, GenericRpcHandler)):
 
 
 class ServerInterceptor(six.with_metaclass(abc.ABCMeta)):
-    """Affords intercepting incoming RPCs on the service-side.
-
-    This is an EXPERIMENTAL API.
-    """
+    """Affords intercepting incoming RPCs on the service-side."""
 
     @abc.abstractmethod
     def intercept_service(self, continuation, handler_call_details):
@@ -1989,8 +1974,6 @@ def secure_channel(target, credentials, options=None, compression=None):
 def intercept_channel(channel, *interceptors):
     """Intercepts a channel through a set of interceptors.
 
-    This is an EXPERIMENTAL API.
-
     Args:
       channel: A Channel.
       interceptors: Zero or more objects of type
@@ -2144,6 +2127,9 @@ __all__ = (
     'protos',
     'services',
     'protos_and_services',
+    'xds_channel_credentials',
+    'xds_server_credentials',
+    'insecure_server_credentials',
 )
 
 ############################### Extension Shims ################################
