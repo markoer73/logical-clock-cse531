@@ -31,9 +31,9 @@ ONE_DAY = datetime.timedelta(days=1)
 logger = setup_logger("Customer")
 
 class Customer:
-    def __init__(self, ID, events):
+    def __init__(self, _id, events):
         # unique ID of the Customer
-        self.id = ID
+        self.id = _id
         # events from the input
         self.events = events
         # a list of received messages used for debugging purpose
@@ -54,7 +54,6 @@ class Customer:
 
         if (sg != NotImplemented):
             layout = [
-                [sg.Text(f"Customer #{self.id} -> To Branch @ {Branch_address}", size=(60,1), justification="center")],
                 [sg.Text("Operations Loaded:", size=(60,1), justification="left")],
                 [sg.Listbox(values=self.events, size=(60, 3))],
                 [sg.Output(size=(80,12))],
@@ -64,20 +63,20 @@ class Customer:
 
             # Create the window
             sg.theme('Dark Green 5')
-            self.window = sg.Window(f"Customer #{self.id}"
+            self.window = sg.Window(f"Customer #{self.id} -> To Branch @ {Branch_address}"
                 , layout
-                , location=(100*(self.id+1),100*self.id)
+                , location=(100*(self.id)+20,100*self.id)
             )
 
         client = grpc.server(futures.ThreadPoolExecutor(max_workers=THREAD_CONCURRENCY,),)
         #banking_pb2_grpc.add_BankingServicer_to_server(Customer, client)
         client.start()
 
-    # Iterate through the list of the customer events, sends the messages,
+    # Iterate through the list of the customer's events, sends the messages,
     # and output to the JSON file
     #
     def executeEvents(self, output_file):
-        """Execute customer events."""
+        """Execute customer'S events."""
         
         # DEBUG
         #MyLog(logger,f'Executing events for Customer #{self.id}')
@@ -97,6 +96,7 @@ class Customer:
                         D_ID=self.id,
                     )
                 )
+                
                 MyLog(logger,
                     f'Customer #{self.id} sent request {request_id} to Branch #{response.ID} '
                     f'interface {get_operation_name(request_operation)} result {get_result_name(response.RC)} '
@@ -105,9 +105,6 @@ class Customer:
                     'interface': get_operation_name(request_operation),
                     'result': get_result_name(response.RC),
                 }
-                if request_operation == banking_pb2.QUERY:
-                    values['money'] = response.Amount
-                record['recv'].append(values)
                 
                 if (sg != NotImplemented):
                     if (self.window != None):
@@ -117,22 +114,34 @@ class Customer:
                             f'money {response.Amount}'
                         )
                         self.window.Refresh()
-            
-            except:
+
+                if request_operation == banking_pb2.QUERY:
+                    values['money'] = response.Amount
+                record['recv'].append(values)
+                                 
+                if record['recv']:
+                    # DEBUG
+                    #MyLog(logger,f'Writing JSON file on #{output_file}')
+                    with open(f'{output_file}', 'a') as outfile:
+                        json.dump(record, outfile)
+                        outfile.write('\n')
+                        
+            except grpc.RpcError as rpc_error_call:
+                code = rpc_error_call.code()
+                details = rpc_error_call.details()
+
+                if (code.name == "UNAVAILABLE"):
+                    ErrorMessage = (f'Error on Request #{request_id}: Branch #{self.id} likely unavailable - Code: {code} - Details: {details}')
+                else:
+                    ErrorMessage = (f'Error on Request #{request_id}: Code: {code} - Details: {details}')
+
                 MyLog(logger,
-                    f'Branch #{request_id} not running!'
+                    ErrorMessage
                 )
                 if (sg != NotImplemented):
                     if (self.window != None):
-                        print(f'Branch id {request_id} not running - messaging failed!')
+                        print(ErrorMessage)
                         self.window.Refresh()
-
-        if record['recv']:
-            # DEBUG
-            #MyLog(logger,f'Writing JSON file on #{output_file}')
-            with open(f'{output_file}', 'a') as outfile:
-                json.dump(record, outfile)
-                outfile.write('\n')
 
     # Spawn the Customer process client. No need to bind to a port here; rather, we are connecting to one.
     #

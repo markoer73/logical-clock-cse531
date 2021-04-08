@@ -65,10 +65,10 @@ class Branch(banking_pb2_grpc.BankingServicer):
         
         if request.OP == banking_pb2.QUERY:
             #time.sleep(SLEEP_SECONDS)
-            balance_result = self.Query()
+            response_result, balance_result = self.Query()
         
         if request.OP == banking_pb2.DEPOSIT:
-            balance_result = self.Deposit(request.Amount)
+            response_result, balance_result = self.Deposit(request.Amount)
             #time.sleep(SLEEP_SECONDS)
         
         if request.OP == banking_pb2.WITHDRAW:
@@ -76,9 +76,10 @@ class Branch(banking_pb2_grpc.BankingServicer):
             #time.sleep(SLEEP_SECONDS)
 
         ResponseText = (
-            f'Branch {self.id} received request ID {request.S_ID} from Customer {request.D_ID} '
-            f'operation: {get_operation_name(request.OP)} result {get_result_name(response_result)} '
-            f'balance {balance_result}'
+            f'Branch {self.id} received request ID {request.S_ID} from Customer {request.D_ID} - '
+            f'Operation: {get_operation_name(request.OP)} - '
+            f'Result: {get_result_name(response_result)} - '
+            f'New balance: {balance_result}'
         )
         MyLog(logger,
             ResponseText
@@ -98,9 +99,9 @@ class Branch(banking_pb2_grpc.BankingServicer):
         )
     
         ResponseText = (
-            f'Branch {self.id} response to Customer request {ID} '
-            f'Response result {get_result_name(RC)} '
-            f'balance {Amount}' 
+            f'Branch {self.id} response to Customer request ID {request.S_ID} - '
+            f'Result: {get_result_name(response_result)} - '
+            f'New balance: {balance_result}' 
         )    
         MyLog(logger,
             ResponseText
@@ -124,13 +125,14 @@ class Branch(banking_pb2_grpc.BankingServicer):
         return response
 
     def Query(self):
-        return self.balance
+        return banking_pb2.SUCCESS, self.balance
 
     def Deposit(self, amount):
-        if amount <= 0:		        # invalid operation
-            return BankingRPC.ERROR
-        self_balance = self.balance + amount
-        return self.balance
+        if amount <= 0:		                            # invalid operation - but returns the balance anyway
+            return banking_pb2.ERROR, self.balance
+        new_balance = self.balance + amount
+        self.balance = new_balance
+        return banking_pb2.SUCCESS, new_balance         # success
 
     def Withdraw(self, amount):
         # Distinguish between error (cannot execute a certain operation) or failure (operation is valid, but for instance
@@ -238,18 +240,17 @@ def Run_Branch(Branch, binding_address, THREAD_CONCURRENCY):
     banking_pb2_grpc.add_BankingServicer_to_server(Branch, server)
 
     if (sg != NotImplemented):
-        #sg.set_options(border_width=2, margins=(10, 10), element_padding=(10, 10))
         layout = [
-            [sg.Text(f"Branch #{Branch.id} at Address {Branch.bind_address}", size=(60,1), justification="center")],
-            [sg.Output(size=(80,15))],
+            [sg.Text(f"Initial Balance: {Branch.balance}", size=(40,1), justification="left")],
+            [sg.Output(size=(90,15))],
             [sg.Button("Close", tooltip='Terminates Branch')]
         ]
 
         # Create the window
         sg.theme('Dark Blue 3')
-        Branch.window = sg.Window(f"Branch #{Branch.id}"
+        Branch.window = sg.Window(f"Branch #{Branch.id} at Address {Branch.bind_address}"
             , layout
-            , location=(1000+100*Branch.id, 100*Branch.id)
+            , location=(900+100*Branch.id, 100*Branch.id)
         )
 
         Branch.window.refresh()

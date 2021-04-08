@@ -41,7 +41,6 @@ except ImportError:
 #THREAD_CONCURRENCY = multiprocessing.cpu_count()
 THREAD_CONCURRENCY = 2
 SLEEP_SECONDS = 5
-#PROCESS_COUNT = 4
 
 def Process_Args():
     """Parse arguments."""

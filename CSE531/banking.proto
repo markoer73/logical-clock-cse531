@@ -37,7 +37,7 @@ message MsgDeliveryRequest  {
 }
 
 message MsgDeliveryResponse {
-	int64 ID	= 1;		// Branch or Client ID
+	int64 ID		= 1;		// Branch or Client ID
 	ReturnCode RC	= 2;		// Return Code from the operation
 	int64 Amount	= 3;		// Amound of $$ involved
 }
