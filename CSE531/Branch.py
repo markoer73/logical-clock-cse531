@@ -22,7 +22,7 @@ import banking_pb2_grpc
 try:
     import PySimpleGUI as sg                #  Better than CTRL+c
 except ImportError:
-    sg = NotImplemented    
+    sg = NotImplemented
 
 
 ONE_DAY = datetime.timedelta(days=1)
@@ -50,6 +50,8 @@ class Branch(banking_pb2_grpc.BankingServicer):
         self.recvMsg = list()
         # Binded address
         self.bind_address = str
+        # GUI Window handle, if used
+        self.window = None
         # Local logical clock
         self.logical_clock = 0
 
@@ -68,6 +70,16 @@ class Branch(banking_pb2_grpc.BankingServicer):
             f'Branch {self.id} response to Customer request {request.S_ID} '
             f'interface {get_operation_name(request.OP)} result {get_result_name(response_result)} '
             f'balance {balance_result}' )
+
+        if (sg != NotImplemented):
+            if (self.window != None):
+                oldtext = self.window['-RECEIVED-']
+                self.window['-RECEIVED-'].update (f'{oldtext}\n' 
+                f'Received {get_operation_name(request.OP)} '
+                f'id {request.S_ID} result {get_result_name(response_result)} '
+                f'balance {balance_result}' )
+                self.window.Refresh()
+
         response = banking_pb2.MsgDeliveryResponse(
             ID=request.S_ID,
             RC=response_result,
@@ -110,6 +122,14 @@ class Branch(banking_pb2_grpc.BankingServicer):
         if not self.stubList:
             self.Populate_Stub_List()
         for stub in self.stubList:
+
+            if (sg != NotImplemented):
+                if (self.window != None):
+                    oldtext = self.window['-DISPATCHED-']
+                    self.window['-DISPATCHED-'].update (f'{oldtext}\n' 
+                        f'Propagate {get_operation_name(banking_pb2.DEPOSIT)} id {request_id} amount {amount} to other branches')
+                    self.window.Refresh()
+
             response = stub.MsgDelivery(
                 banking_pb2.MsgDeliveryRequest(
                     S_ID=request_id,
@@ -128,6 +148,14 @@ class Branch(banking_pb2_grpc.BankingServicer):
         if not self.stubList:
             self.Populate_Stub_List()
         for stub in self.stubList:
+
+            if (sg != NotImplemented):
+                if (self.window != None):
+                    oldtext = self.window['-DISPATCHED-']
+                    self.window['-DISPATCHED-'].update (f'{oldtext}\n' 
+                        f'Propagate {get_operation_name(banking_pb2.WITHDRAW)} id {request_id} amount {amount} to other branches')
+                    self.window.Refresh()
+
             response = stub.MsgDelivery(
                 banking_pb2.MsgDeliveryRequest(
                     S_ID=request_id,
@@ -151,25 +179,21 @@ class Branch(banking_pb2_grpc.BankingServicer):
                 self.stubList.append(banking_pb2_grpc.BankingStub(grpc.insecure_channel(branch_address)))
 
 
-# Currently waits for a day unless a CTRL+C is pressed, but it can be improved
+# If PySimpleGUI/TK are installed, launches a window in the Windows' Manager.
+# Otherwise, it waits for a day unless CTRL+C is pressed
 #
 def Wait_Loop(Branch):
 
     if (sg != NotImplemented):
-        layout = [[sg.Text(f"Branch #{Branch.id} at Address {Branch.bind_address}", size=(60, 1), justification="center")], [sg.Button("Close")]]
-
-        # Create the window
-        window = sg.Window(f"Branch #{Branch.id}", layout)
-
+        
         # Create an event loop
         while True:
-            event, values = window.read()
+            event, values = Branch.window.read()
+
             # End program if user closes window or
             # presses the Close button
             if event == "Close" or event == sg.WIN_CLOSED:
                 break
-
-        window.close()
     else:
         try:
             while True:
@@ -190,11 +214,33 @@ def Run_Branch(Branch, binding_address, THREAD_CONCURRENCY):
     Branch.bind_address = binding_address
     banking_pb2_grpc.add_BankingServicer_to_server(Branch, server)
 
+    if (sg != NotImplemented):
+        #sg.set_options(border_width=2, margins=(10, 10), element_padding=(10, 10))
+        layout = [
+            [sg.Text(f"Branch #{Branch.id} at Address {Branch.bind_address}", justification="center")],
+            [sg.Text('Received events: ', auto_size_text=True, key='-RECEIVED-')],
+            [sg.Text('Dispatched events: ', auto_size_text=True, key='-DISPATCHED-')],
+            [sg.Button("Close", tooltip='Terminates Branch')]
+        ]
+
+        # Create the window
+        Branch.window = sg.Window(f"Branch #{Branch.id}"
+            , layout
+            #, finalize=True
+            , size=(300, 300)
+            , location=(1000+100*Branch.id, 100*Branch.id)
+        )
+
+        Branch.window.refresh()
+
     server.add_insecure_port(binding_address)
     server.start()
 
     MyLog(logger,'*** Press CTRL+C to exit the process when finished ***')
     Wait_Loop(Branch)
+
+    if (sg != NotImplemented):
+        Branch.window.close()
 
     server.stop(None)
 

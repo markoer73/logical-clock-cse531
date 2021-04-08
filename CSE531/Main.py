@@ -28,6 +28,11 @@ import grpc
 import banking_pb2
 import banking_pb2_grpc
 
+try:
+    import PySimpleGUI as sg                #  Better than CTRL+c
+except ImportError:
+    sg = NotImplemented
+
 #
 # Multiprocessing reused from https://github.com/grpc/grpc/tree/801c2fd832ec964d04a847c6542198db093ff81d/examples/python/multiprocessing
 #
@@ -151,11 +156,11 @@ def main():
             MyLog(logger, f'Started branch \"{worker.name}\" on initial balance {curr_branch.balance}), '
                           f'with PID {worker.pid} at address {bind_address} successfully')
 
-
-    # Wait some seconds before initialising the clients, to give time the servers to start
-    MyLog(logger, f'*** Waiting for {SLEEP_SECONDS} seconds before starting the clients ***')
-    MyLog(logger, f'    (Otherwise it will sometimes fail when the computer is slow)')
-    time.sleep(SLEEP_SECONDS)
+    if (sg == NotImplemented):
+        # Wait some seconds before initialising the clients, to give time the servers to start
+        MyLog(logger, f'*** Waiting for {SLEEP_SECONDS} seconds before starting the clients ***')
+        MyLog(logger, f'    (Otherwise it will sometimes fail when the computer is slow)')
+        time.sleep(SLEEP_SECONDS)
 
     # Spawns processes for customers
     #
