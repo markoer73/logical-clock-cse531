@@ -46,39 +46,40 @@ def Process_Args():
 
 # Load input file with branches and customers
 #
-def Load_Input_File(filename, branches, customers):
-    """Load from input files."""
+def Load_Input_File(filename, branches_list, customers_list):
+    """Load branches, customers and events from input files."""
     try:
         file = open(filename)
     except OSError:
         raise RuntimeError(f'Failed to open {filename}.')
     
     items = json.load(file)
+    
     # Retrieves:
     #   the branches' list and populate IDs and balances
     #   the customers' operations and populate events
     for item in items:
         if item['type'] == 'branch':
             branch = Branch(item['id'], item['balance'], list())
-            branches.append(branch)
+            branches_list.append(branch)
         if item['type'] == 'customer':
             events = list()
             for event in item['events']:
                 events.append(event)
             customer = Customer(item['id'], events)
-            customers.append(customer)
+            customers_list.append(customer)
 
     # Append the list of all branches to every branch - except self
-    for b in branches:
-        for b1 in branches:
+    for b in branches_list:
+        for b1 in branches_list:
             if b.id != b1.id:
                 b.branches.append(b1.id)
-        MyLog(logger, f'Branch #{b.id} initialised with Balance={b.balance}; Other branches identified={b.branches}')
+        MyLog(logger, f'[Main] Branch {b.id} initialised with Balance={b.balance}; Other branches identified={b.branches}')
 
     # Append the list of all events to customers
-    for c in customers:
+    for c in customers_list:
         for e in c.events:
-            MyLog(logger, f'Customer #{c.id} has Event #{e["id"]} = {e["interface"]}, {e["money"]}')
+            MyLog(logger, f'[Main] Customer {c.id} identified event #{e["id"]} = {e["interface"]}, {e["money"]}')
 
     file.close()
 
@@ -107,19 +108,19 @@ def Reserve_Port():
 def main():
     """Main function."""
 
-    MyLog(logger, f'*** Processing Arguments ***')
+    MyLog(logger, f'[Main] *** Processing Arguments ***')
 
     input_file, output_file = Process_Args()
     if not input_file:
         input_file = 'input.json'
     if not output_file:
         output_file = 'output.json'
-    branches = list()
-    customers = list()
+    branches_list = list()
+    customers_list = list()
 
-    MyLog(logger, f'*** Processing Input File ***')
+    MyLog(logger, f'[Main] *** Processing Input File ***')
 
-    Load_Input_File(input_file, branches, customers)
+    Load_Input_File(input_file, branches_list, customers_list)
     branches_addresses_ids = []
     workers = list()
 
@@ -129,26 +130,26 @@ def main():
     # any gRPC servers start up. See
     # https://github.com/grpc/grpc/issues/16001 for more details.
 
-    MyLog(logger, f'*** Starting Processes for Servers/Branches ***')
+    MyLog(logger, f'[Main] *** Starting Processes for Servers/Branches ***')
 
     # Reserve the addresses for Branches
-    for curr_branch in branches:
+    for curr_branch in branches_list:
         curr_port = Reserve_Port()
         curr_branch.bind_address = '[::]:{}'.format(curr_port)
         # save branch bind address for the customers and other branches to know
         branches_addresses_ids.append ([curr_branch.id, curr_branch.bind_address])
 
     # Copy the list of all the branches and PIDs to all the Branches' list
-    for curr_branch in branches:
+    for curr_branch in branches_list:
         curr_branch.branchList = branches_addresses_ids[:]
 
-    for curr_branch in branches:
+    for curr_branch in branches_list:
         worker = multiprocessing.Process(name=f'Branch-{curr_branch.id}', target=Run_Branch,
                                             args=(curr_branch,THREAD_CONCURRENCY))
         worker.start()
         workers.append(worker)
 
-        MyLog(logger, f'[Main] Started branch \"{worker.name}\" on initial balance {curr_branch.balance}), '
+        MyLog(logger, f'[Main] Booting branch \"{worker.name}\" on initial balance {curr_branch.balance}), '
                         f'with PID {worker.pid} at address {curr_branch.bind_address} successfully')
 
     if (sg == NotImplemented):
@@ -166,7 +167,7 @@ def main():
 
     MyLog(logger, f'[Main] *** Starting Processes for Clients/Customers ***')
 
-    for curr_customer in customers:
+    for curr_customer in customers_list:
         # DEBUG
         #LOGGER.info(f'Processing Customer #{curr_customer.id} with Events:' )
         #for e in curr_customer.events:

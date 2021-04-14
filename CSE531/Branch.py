@@ -266,7 +266,6 @@ def Run_Branch(Branch, THREAD_CONCURRENCY):
     options = (('grpc.so_reuseport', 1),)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=THREAD_CONCURRENCY,), options=options)
 
-    #Branch.bind_address = binding_address
     banking_pb2_grpc.add_BankingServicer_to_server(Branch, server)
 
     if (sg != NotImplemented):
@@ -297,3 +296,5 @@ def Run_Branch(Branch, THREAD_CONCURRENCY):
         Branch.window.close()
 
     server.stop(None)
+    
+    MyLog(logger,f'[Branch {Branch.id}] Exiting Successfully.')
