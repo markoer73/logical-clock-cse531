@@ -19,7 +19,7 @@ except ImportError:
 
 # Force this if you want no graphical windows' interface, even with PySimpleGUI and TK installed.
 # Commented = windows, uncommented = text only
-sg = NotImplemented
+#sg = NotImplemented
 
 # Global logger
 def setup_logger (name):
@@ -31,13 +31,13 @@ def setup_logger (name):
     logger.setLevel(logging.INFO)
     return logger
 
-def MyLog (logger, log_string, window=None):
-    logger.info(log_string)
+def MyLog (logger, LogMessage, window=None):
+    logger.info(LogMessage)
     sys.stdout.flush()
     if (sg != NotImplemented):
         if (window != None):
             print(
-                ResponseText
+                LogMessage
             )
             window.Refresh()
 
