@@ -1,7 +1,14 @@
 import logging
 import sys
 
-#branches_addresses_ids = []
+try:
+    import PySimpleGUI as sg                #  Better than CTRL+c
+except ImportError:
+    sg = NotImplemented
+
+# Force this if you want no graphical windows' interface, even with PySimpleGUI and TK installed.
+# Commented = windows, uncommented = text only
+#sg = NotImplemented
 
 # Global logger
 def setup_logger (name):

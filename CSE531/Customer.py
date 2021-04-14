@@ -14,16 +14,11 @@ import multiprocessing
 import json
 
 from concurrent import futures
-from Util import setup_logger, MyLog
+from Util import setup_logger, MyLog, sg
 
 import grpc
 import banking_pb2
-import banking_pb2_grpc
-
-try:
-    import PySimpleGUI as sg                #  Better than CTRL+c
-except ImportError:
-    sg = NotImplemented    
+import banking_pb2_grpc   
 
 #from Main import get_operation, get_operation_name, get_result_name
 

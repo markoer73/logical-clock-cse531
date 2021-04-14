@@ -21,20 +21,14 @@ import time
 from concurrent import futures
 from Branch import Branch, Run_Branch
 from Customer import Customer
-from Util import setup_logger, MyLog
+from Util import setup_logger, MyLog, sg
 
 import grpc
 
 import banking_pb2
 import banking_pb2_grpc
 
-try:
-    import PySimpleGUI as sg                #  Better than CTRL+c
-except ImportError:
-    sg = NotImplemented
-
-#
-# Multiprocessing reused from https://github.com/grpc/grpc/tree/801c2fd832ec964d04a847c6542198db093ff81d/examples/python/multiprocessing
+# Multiprocessing code reused from https://github.com/grpc/grpc/tree/801c2fd832ec964d04a847c6542198db093ff81d/examples/python/multiprocessing
 #
 
 # setup a maximum number of thread concurrency following the number of CPUs x cores enumerated by Python
