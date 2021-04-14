@@ -68,11 +68,12 @@ def Load_Input_File(filename, branches, customers):
             customer = Customer(item['id'], events)
             customers.append(customer)
 
-    # Append the list of all branches to every branch
+    # Append the list of all branches to every branch - except self
     for b in branches:
         for b1 in branches:
-            b.branches.append(b1.id)
-        MyLog(logger, f'Branch #{b.id} initialised with Balance={b.balance}; Branches identified={b.branches}')
+            if b.id != b1.id:
+                b.branches.append(b1.id)
+        MyLog(logger, f'Branch #{b.id} initialised with Balance={b.balance}; Other branches identified={b.branches}')
 
     # Append the list of all events to customers
     for c in customers:
@@ -147,13 +148,13 @@ def main():
         worker.start()
         workers.append(worker)
 
-        MyLog(logger, f'Started branch \"{worker.name}\" on initial balance {curr_branch.balance}), '
+        MyLog(logger, f'[Main] Started branch \"{worker.name}\" on initial balance {curr_branch.balance}), '
                         f'with PID {worker.pid} at address {curr_branch.bind_address} successfully')
 
     if (sg == NotImplemented):
         # Wait some seconds before initialising the clients, to give time the servers to start
-        MyLog(logger, f'*** Waiting for {SLEEP_SECONDS} seconds before starting the clients ***')
-        MyLog(logger, f'    (Otherwise it will sometimes fail when the computer is slow)')
+        MyLog(logger, f'[Main] *** Waiting for {SLEEP_SECONDS} seconds before starting the clients ***')
+        MyLog(logger, f'[Main]     (Otherwise it will sometimes fail when the computer is slow)')
         time.sleep(SLEEP_SECONDS)
 
     # Spawns processes for customers
@@ -163,7 +164,7 @@ def main():
     # We need to pass the address binded of the matching server in the Customer class constructor
     # or it won't be able to determine it.
 
-    MyLog(logger, f'*** Starting Processes for Clients/Customers ***')
+    MyLog(logger, f'[Main] *** Starting Processes for Clients/Customers ***')
 
     for curr_customer in customers:
         # DEBUG
@@ -183,7 +184,7 @@ def main():
         worker.start()
         workers.append(worker)
         
-        MyLog(logger, f'Started customer \"{worker.name}\" with PID {worker.pid} successfully')
+        MyLog(logger, f'[Main] Started Customer \"{worker.name}\" with PID {worker.pid} successfully.')
 
     for worker in workers:
         worker.join()
@@ -191,5 +192,5 @@ def main():
 
 logger = setup_logger("Main")
 if __name__ == '__main__':
-    MyLog(logger, "Logger initialised")
+    MyLog(logger, "[Main] Logger initialised")
     main()

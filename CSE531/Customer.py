@@ -14,7 +14,7 @@ import multiprocessing
 import json
 
 from concurrent import futures
-from Util import setup_logger, MyLog, sg
+from Util import setup_logger, MyLog, sg, get_operation, get_operation_name, get_result_name
 
 import grpc
 import banking_pb2
@@ -43,7 +43,7 @@ class Customer:
     def createStub(self, Branch_address, THREAD_CONCURRENCY):
         """Start a client (customer) stub."""
         
-        MyLog(logger, f'Initializing customer stub to branch stub at {Branch_address}')
+        MyLog(logger, f'[Customer {self.id}] Initializing customer stub to branch stub at {Branch_address}')
         
         self.stub = banking_pb2_grpc.BankingStub(grpc.insecure_channel(Branch_address))
 
@@ -64,7 +64,6 @@ class Customer:
             )
 
         client = grpc.server(futures.ThreadPoolExecutor(max_workers=THREAD_CONCURRENCY,),)
-        #banking_pb2_grpc.add_BankingServicer_to_server(Customer, client)
         client.start()
 
     # Iterate through the list of the customer's events, sends the messages,
@@ -85,7 +84,7 @@ class Customer:
             try:
                 response = self.stub.MsgDelivery(
                     banking_pb2.MsgDeliveryRequest(
-                        S_ID=request_id,
+                        REQ_ID=request_id,
                         OP=request_operation,
                         Amount=request_amount,
                         D_ID=self.id,
@@ -93,20 +92,14 @@ class Customer:
                 )
                 
                 LogMessage = (
-                    f'Customer #{self.id} sent Request ID {request_id} to Branch #{self.event.id} - '
+                    f'[Customer {self.id}] Received response to request ID {request_id} from Branch - '
                     f'Operation: {get_operation_name(request_operation)} - Result: {get_result_name(response.RC)} - '
                     f'New balance: {response.Amount}')
                 values = {
                     'interface': get_operation_name(request_operation),
                     'result': get_result_name(response.RC),
                 }
-                
-                MyLog(logger, LogMessage)
-
-                if (sg != NotImplemented):
-                    if (self.window != None):
-                        print(LogMessage)
-                        self.window.Refresh()
+                MyLog(logger, LogMessage, self.window)
 
                 if request_operation == banking_pb2.QUERY:
                     values['money'] = response.Amount
@@ -124,18 +117,11 @@ class Customer:
                 details = rpc_error_call.details()
 
                 if (code.name == "UNAVAILABLE"):
-                    ErrorMessage = (f'Error on Request #{request_id}: Branch #{self.id} likely unavailable - Code: {code} - Details: {details}')
+                    LogMessage = (f'[Customer {self.id}] Error on Request #{request_id}: Branch {self.id} likely unavailable - Code: {code} - Details: {details}')
                 else:
-                    ErrorMessage = (f'Error on Request #{request_id}: Code: {code} - Details: {details}')
-
-                MyLog(logger,
-                    ErrorMessage
-                )
-                if (sg != NotImplemented):
-                    if (self.window != None):
-                        print(ErrorMessage)
-                        self.window.Refresh()
-
+                    LogMessage = (f'[Customer {self.id}] Error on Request #{request_id}: Code: {code} - Details: {details}')
+                MyLog(logger, LogMessage, self.window)
+ 
     # Spawn the Customer process client. No need to bind to a port here; rather, we are connecting to one.
     #
     def Run_Customer(self, Branch_address, output_file, THREAD_CONCURRENCY):
@@ -145,7 +131,7 @@ class Customer:
         #for e in self.events:
         #    MyLog(logger,f'    #{e["id"]} = {e["interface"]}, {e["money"]}' )
                 
-        MyLog(logger,f'Running client customer #{self.id} connecting to server {Branch_address}...')
+        MyLog(logger,f'[Customer {self.id}] Booting...')
 
         Customer.createStub(self, Branch_address, THREAD_CONCURRENCY)
 
@@ -154,50 +140,20 @@ class Customer:
                 
                 # Start events with "Run"
                 while True:
-                    event, values = self.window.read()
+                    wevent, values = self.window.read()
                     
                     # End program if user closes window or
                     # presses the Close button
-                    if event == "Close" or event == sg.WIN_CLOSED:
-                        #MyLog(logger,f'Client customer #{self.id} connecting to server {Branch_address} did not execute events.')
-                        MyLog(logger,f'Client customer #{self.id} connecting to server {Branch_address} closing windows.')
+                    if wevent == "Close" or wevent == sg.WIN_CLOSED:
+                        #MyLog(logger,f'Customer #{self.id} connecting to server {Branch_address} did not execute events.')
+                        MyLog(logger,f'[Customer {self.id}] Closing windows.')
                         break
-                    if event == "Run":
+                    if wevent == "Run":
                         Customer.executeEvents(self, output_file)
-                        MyLog(logger,f'Client customer #{self.id} connecting to server {Branch_address} exiting successfully.')
+                        MyLog(logger,f'[Customer {self.id}] Exiting successfully.')
                         #break
 
                 self.window.close()
         else:
             Customer.executeEvents(self, output_file)
-            MyLog(logger,f'Client customer #{self.id} connecting to server {Branch_address} exiting successfully.')
-
-
-# Utility functions, used for readability
-#
-def get_operation(operation):
-    """Returns the message type from the operation described in the input file."""
-    if operation == 'query':
-        return banking_pb2.QUERY
-    if operation == 'deposit':
-        return banking_pb2.DEPOSIT
-    if operation == 'withdraw':
-        return banking_pb2.WITHDRAW
-
-def get_operation_name(operation):
-    """Returns the operation type from the message."""
-    if operation == banking_pb2.QUERY:
-        return 'QUERY'
-    if operation == banking_pb2.DEPOSIT:
-        return 'DEPOSIT'
-    if operation == banking_pb2.WITHDRAW:
-        return 'WITHDRAW'
-
-def get_result_name(name):
-    """Return state of a client's operation."""
-    if name == banking_pb2.SUCCESS:
-        return 'SUCCESS'
-    if name == banking_pb2.FAILURE:
-        return 'FAILURE'
-    if name == banking_pb2.ERROR:
-        return 'ERROR'
+            MyLog(logger,f'[Customer {self.id}] Exiting successfully.')
