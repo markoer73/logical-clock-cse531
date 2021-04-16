@@ -32,8 +32,8 @@ import banking_pb2_grpc
 #
 
 # setup a maximum number of thread concurrency following the number of CPUs x cores enumerated by Python
-#THREAD_CONCURRENCY = multiprocessing.cpu_count()
-THREAD_CONCURRENCY = 2
+THREAD_CONCURRENCY = multiprocessing.cpu_count()
+#THREAD_CONCURRENCY = 2
 SLEEP_SECONDS = 5
 
 def Process_Args():
@@ -74,7 +74,7 @@ def Load_Input_File(filename, branches_list, customers_list):
         for b1 in branches_list:
             if b.id != b1.id:
                 b.branches.append(b1.id)
-        MyLog(logger, f'[Main] Branch {b.id} initialised with Balance={b.balance}; Other branches identified={b.branches}')
+        MyLog(logger, f'[Main] Branch {b.id} initialised with Balance={b.balance} and Clock={b.local_clock}; Other branches identified={b.branches}')
 
     # Append the list of all events to customers
     for c in customers_list:

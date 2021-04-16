@@ -10,6 +10,7 @@ package app;
 
 service Banking {
 	rpc MsgDelivery(MsgDeliveryRequest) returns (MsgDeliveryResponse) {}
+	rpc GetEvents(EventsRequest) returns (EventsResponse) {}
 }
 
 enum Operation {
@@ -34,10 +35,24 @@ message MsgDeliveryRequest  {
 	Operation OP	= 2;		// Operation requested
 	int64 Amount 	= 3;		// Amount of $$ involved
 	int64 D_ID		= 4;		// Branch or Client Destination ID
+	int64 Clock		= 5;		// Tick clock in the case of logical clock case
 }
 
 message MsgDeliveryResponse {
 	int64 ID		= 1;		// Branch or Client ID
 	ReturnCode RC	= 2;		// Return Code from the operation
 	int64 Amount	= 3;		// Amound of $$ involved
+	int64 Clock		= 4;		// Tick clock in the case of logical clock case
+}
+
+message EventsRequest {}
+
+message EventsResponse {
+	repeated Event events = 1;
+}
+
+message Event {
+	int64 id_ = 1;
+	string name = 2;
+	int64 clock = 3;
 }

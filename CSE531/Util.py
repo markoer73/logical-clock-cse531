@@ -19,7 +19,7 @@ except ImportError:
 
 # Force this if you want no graphical windows' interface, even with PySimpleGUI and TK installed.
 # Commented = windows, uncommented = text only
-#sg = NotImplemented
+sg = NotImplemented
 
 # Global logger
 def setup_logger (name):

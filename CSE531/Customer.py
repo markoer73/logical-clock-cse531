@@ -26,6 +26,8 @@ ONE_DAY = datetime.timedelta(days=1)
 logger = setup_logger("Customer")
 
 class Customer:
+    """ Customer class definition """
+
     def __init__(self, _id, events):
         # unique ID of the Customer
         self.id = _id
@@ -37,11 +39,25 @@ class Customer:
         self.stub = None
         # GUI Window handle, if used
         self.window = None
+        # Local logical clock
+        self.local_clock = 0
 
     # Create stub for the customer, matching them with their respective branch
     #
     def createStub(self, Branch_address, THREAD_CONCURRENCY):
-        """Start a client (customer) stub."""
+        """ Boots a client (customer) stub in a subprocess
+
+        If PySimpleGUI/TK are installed, launches a window in the Windows' Manager.
+
+        Args:
+            Self:               Customer class
+            Branch_address:     TCP/IP address/port where to fund the Branch to connect to
+            THREAD_CONCURRENCY: Integer, number of threads concurrency
+
+        Returns:
+            None
+
+        """
         
         MyLog(logger, f'[Customer {self.id}] Initializing customer stub to branch stub at {Branch_address}')
         
@@ -82,19 +98,27 @@ class Customer:
             request_amount = event['money']
             
             try:
+
+                LogMessage = (
+                    f'[Customer {self.id}] executing request ID {request_id} against Branch - '
+                    f'Operation: {get_operation_name(request_operation)} - '
+                    f'Initial balance: {request_amount} - Clock: {self.local_clock}')
+                MyLog(logger, LogMessage, self.window)
+
                 response = self.stub.MsgDelivery(
                     banking_pb2.MsgDeliveryRequest(
                         REQ_ID=request_id,
                         OP=request_operation,
                         Amount=request_amount,
                         D_ID=self.id,
+                        Clock=self.local_clock
                     )
                 )
                 
                 LogMessage = (
                     f'[Customer {self.id}] Received response to request ID {request_id} from Branch - '
                     f'Operation: {get_operation_name(request_operation)} - Result: {get_result_name(response.RC)} - '
-                    f'New balance: {response.Amount}')
+                    f'New balance: {response.Amount} - Clock: {response.Clock}')
                 values = {
                     'interface': get_operation_name(request_operation),
                     'result': get_result_name(response.RC),

@@ -30,6 +30,7 @@ SLEEP_SECONDS = 3
 DO_NOT_PROPAGATE = -1       
 
 class Branch(banking_pb2_grpc.BankingServicer):
+    """ Branch class definition """
 
     def __init__(self, ID, balance, branches):
         # unique ID of the Branch
@@ -50,10 +51,23 @@ class Branch(banking_pb2_grpc.BankingServicer):
         self.window = None
         # Local logical clock
         self.local_clock = 0
+        # List of events, including local clocks
+        self.events = list()
 
     def MsgDelivery(self, request, context):
-        """Manages RPC calls coming into a Branch."""
-        
+        """ Manages RPC calls coming into a branch from a
+            customer or another branch
+
+        Args:
+            self:    Branch class
+            request: gRPC class (the message)
+            context: gRPC context
+
+        Returns:
+            MsgDeliveryResponse class (gRPC response object)
+
+        """
+
         # Keep a copy of the requests
         self.recvMsg.append(request)
 
@@ -97,6 +111,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
             ID=request.REQ_ID,
             RC=response_result,
             Amount=balance_result,
+            Clock=self.local_clock
         )
     
         LogMessage = (
@@ -118,9 +133,31 @@ class Branch(banking_pb2_grpc.BankingServicer):
         return response
 
     def Query(self):
+        """ Implements the Query interface
+
+        Args:
+            Self:   Branch class
+        
+        Returns: The current Branch balance
+
+        """
         return banking_pb2.SUCCESS, self.balance
 
     def Deposit(self, amount):
+        """ Implements the Deposit interface
+
+        Args:
+            Self:   Branch class
+            amount: the amount to be added to the balance
+
+        Returns:
+            banking_pb2 constant: either SUCCESS, FAILURE, or ERROR
+                If the amount added is smaller than zero,
+                the operation will return ERROR, otherwise SUCCESS.
+
+            new_balance: The updated Branch balance after the amount has been added.
+
+        """
         if amount <= 0:		                            # invalid operation - but returns the balance anyway
             return banking_pb2.ERROR, self.balance
         new_balance = self.balance + amount
@@ -128,6 +165,25 @@ class Branch(banking_pb2_grpc.BankingServicer):
         return banking_pb2.SUCCESS, new_balance         # success
 
     def Withdraw(self, amount):
+        """ Implements the Withdraw interface
+
+        Args:
+            Self:   Branch class
+            amount: the amount to be removed to the balance
+
+        Returns: 
+            banking_pb2 constant: either SUCCESS, FAILURE, or ERROR.
+                If the amount requested is smaller than zero,
+                the operation will return ERROR.
+                If the amount requested is bigger than the current balance,
+                the operation will return FAILURE, otherwise SUCCESS.
+
+            new_balance: The updated Branch balance after the amount has been withdrawn.
+                If the amount requested is bigger than the current balance,
+                the operation will fail and the balance returned will be the previous
+                balance. 
+
+        """
         # Distinguish between error (cannot execute a certain operation) or failure (operation is valid, but for instance
         # there is not enough balance).
         # This distinction is currently unused but can be used for further expansions of functionalities, such as overdraft.
@@ -140,14 +196,23 @@ class Branch(banking_pb2_grpc.BankingServicer):
         return banking_pb2.SUCCESS, new_balance
 
     def Propagate_Deposit(self, request_id, amount):
+        """ Implements the propagation of the deposit to other branches.
 
+        Args:
+            Self:   Branch class
+            request_id: the request ID of the event
+            amount: the amount to be added to the balance
+
+        Returns: The updated Branch balance after the amount added
+
+        """
         for stub in self.branchList:
 
             if self.id != stub[0]:
 
                 LogMessage = (
                     f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.DEPOSIT)} request ID {request_id} '
-                    f'amount {amount} to Branch #{stub[0]} @{stub[1]}')
+                    f'amount {amount} with clock {self.local_clock} to Branch {stub[0]} @{stub[1]}')
                 MyLog(logger, LogMessage, self.window)
                         
                 try:
@@ -158,12 +223,13 @@ class Branch(banking_pb2_grpc.BankingServicer):
                             OP=banking_pb2.DEPOSIT,
                             Amount=amount,
                             D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
+                            Clock=self.local_clock
                         )
                     )
                     LogMessage = (
-                        f'[Branch {self.id}] sent request ID {request_id} to Branch @{stub[1]} - '
+                        f'[Branch {self.id}] received response to request ID {request_id} to Branch @{stub[1]} - '
                         f'Operation: {get_operation_name(banking_pb2.DEPOSIT)} - Result: {get_result_name(response.RC)} - '
-                        f'New balance: {response.Amount}')
+                        f'New balance: {response.Amount} - Clock: {response.Clock}')
                     
                 except grpc.RpcError as rpc_error_call:
                     code = rpc_error_call.code()
@@ -178,14 +244,23 @@ class Branch(banking_pb2_grpc.BankingServicer):
 
 
     def Propagate_Withdraw(self, request_id, amount):
-        
+        """ Implements the propagation of the withdraw to other branches.
+
+        Args:
+            Self:   Branch class
+            request_id: the request ID of the event
+            amount: the amount to be withdrawn from the balance
+
+        Returns: The updated Branch balance after the amount withdrawn
+
+        """        
         for stub in self.stubList:
 
             if self.id != stub[0]:
 
                 LogMessage = (
                     f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.WITHDRAW)} request ID {request_id} '
-                    f'amount {amount} to Branch #{stub[0]} @{stub[1]}')
+                    f'amount {amount} with clock {self.local_clock} to Branch {stub[0]} @{stub[1]}')
                 MyLog(logger, LogMessage, self.window)
 
                 try:
@@ -196,13 +271,14 @@ class Branch(banking_pb2_grpc.BankingServicer):
                             OP=banking_pb2.WITHDRAW,
                             Amount=amount,
                             D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
+                            Clock=self.local_clock
                         )
                     )
 
                     LogMessage = (
-                        f'[Branch {self.id}] sent request ID {request_id} to Branch @{stub[1]} - '
+                        f'[Branch {self.id}] received response to request ID {request_id} to Branch @{stub[1]} - '
                         f'Operation: {get_operation_name(banking_pb2.WITHDRAW)} - Result: {get_result_name(response.RC)} - '
-                        f'New balance: {response.Amount}')
+                        f'New balance: {response.Amount} - Clock: {response.Clock}')
 
                 except grpc.RpcError as rpc_error_call:
                     code = rpc_error_call.code()
@@ -215,28 +291,35 @@ class Branch(banking_pb2_grpc.BankingServicer):
 
                 MyLog(logger, LogMessage, self.window)
 
+    # Not used anymore
+    #
+    # def Populate_Stub_List(self):
+    #
+    #     if len(self.stubList) == len(self.branches):  # stub list already initialized
+    #         return
+    #
+    #     len_bids = len(branches_addresses_ids)
+    #     for i in range(len_bids):
+    #         bids_id = branches_addresses_ids[i][0]
+    #         if bids_id != self.id:
+    #
+    #             LogMessage = (
+    #                 f'[Branch {self.id}] Initializing to Branch #{branches_addresses_ids[i][0]} stub at {branches_addresses_ids [i][1]}')
+    #             MyLog(logger, LogMessage)
+    #             self.stubList.append(banking_pb2_grpc.BankingStub(grpc.insecure_channel(branches_addresses_ids [i][1])))
 
-    def Populate_Stub_List(self):
 
-        if len(self.stubList) == len(self.branches):  # stub list already initialized
-            return
-
-        len_bids = len(branches_addresses_ids)
-        for i in range(len_bids):
-            bids_id = branches_addresses_ids[i][0]
-            if bids_id != self.id:
-
-                LogMessage = (
-                    f'[Branch {self.id}] Initializing to Branch #{branches_addresses_ids[i][0]} stub at {branches_addresses_ids [i][1]}')
-                MyLog(logger, LogMessage)
-                self.stubList.append(banking_pb2_grpc.BankingStub(grpc.insecure_channel(branches_addresses_ids [i][1])))
-
-
-
-# If PySimpleGUI/TK are installed, launches a window in the Windows' Manager.
-# Otherwise, it waits for a day unless CTRL+C is pressed
-#
 def Wait_Loop(Branch):
+    """ Implements the main waiting loop for branches.
+        If PySimpleGUI/TK are installed, relies on user's interaction on graphical windows.
+        Otherwise, it waits for a day unless CTRL+C is pressed.
+
+    Args:
+        Self:   Branch class
+
+    Returns: none.
+    
+    """
 
     if (sg != NotImplemented):
         
@@ -259,9 +342,18 @@ def Wait_Loop(Branch):
 # Spawn the Branch process server
 #
 def Run_Branch(Branch, THREAD_CONCURRENCY):
-    """Start a server (branch) in a subprocess."""
+    """ Boot a server (branch) in a subprocess.
+        If PySimpleGUI/TK are installed, launches a window in the Windows' Manager.
 
-    MyLog(logger,f'[Branch {Branch.id}] Initialising @{Branch.bind_address}...')
+    Args:
+        Branch:             Branch class
+        THREAD_CONCURRENCY: Integer, number of threads concurrency
+
+    Returns: none.
+    
+    """
+
+    MyLog(logger,f'[Branch {Branch.id}] Initialising @{Branch.bind_address} with local clock {Branch.local_clock}...')
 
     options = (('grpc.so_reuseport', 1),)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=THREAD_CONCURRENCY,), options=options)
@@ -270,7 +362,7 @@ def Run_Branch(Branch, THREAD_CONCURRENCY):
 
     if (sg != NotImplemented):
         layout = [
-            [sg.Text(f"Initial Balance: {Branch.balance}", size=(40,1), justification="left")],
+            [sg.Text(f"Initial Balance: {Branch.balance} - Initial Local Clock: {Branch.local_clock}", size=(40,1), justification="left")],
             [sg.Output(size=(90,15))],
             [sg.Button("Close", tooltip='Terminates Branch')]
         ]
