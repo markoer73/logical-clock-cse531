@@ -76,12 +76,14 @@ class Branch(banking_pb2_grpc.BankingServicer):
         
         if request.D_ID == DO_NOT_PROPAGATE:
             CustomerText = 'another Branch'
+            self.propagateReceive(request.Clock)        # Event received from another branch
         else:
             CustomerText = (f'Customer {request.D_ID}')
+            self.eventReceive(request.Clock)            # Event received from a customer
         LogMessage = (
-            f'[Branch {self.id}] Received request ID {request.REQ_ID} from {CustomerText} - '
+            f'[Branch {self.id}] Received request: ID {request.REQ_ID} {CustomerText} - '
             f'Operation: {get_operation_name(request.OP)} - '
-            f'Amount: {request.Amount}')
+            f'Amount: {request.Amount} - Clock: {request.Clock}')
         MyLog(logger, LogMessage, self)
             
         if request.OP == banking_pb2.QUERY:
@@ -101,9 +103,9 @@ class Branch(banking_pb2_grpc.BankingServicer):
         else:
             CustomerText = (f'Customer {request.D_ID}')
         LogMessage = (
-            f'[Branch {self.id}] Operation: {get_operation_name(request.OP)} request ID {request.REQ_ID} - '
+            f'[Branch {self.id}] Operation executed: {get_operation_name(request.OP)} request ID {request.REQ_ID} - '
             f'Result: {get_result_name(response_result)} - '
-            f'New balance: {balance_result}'
+            f'New balance: {balance_result} - Clock: {self.local_clock}'
         )
         MyLog(logger, LogMessage, self)
 
@@ -117,18 +119,22 @@ class Branch(banking_pb2_grpc.BankingServicer):
         LogMessage = (
             f'[Branch {self.id}] Sent response to request ID {request.REQ_ID} back to {CustomerText} - '
             f'Result: {get_result_name(response_result)} - '
-            f'New balance: {balance_result}' 
+            f'New balance: {balance_result} - Clock: {self.local_clock}' 
         )
         MyLog(logger, LogMessage, self)
 
         # If DO_NOT_PROPAGATE it means it has arrived from another branch and it must not be
         # spread further.  Also, thre is no need to propagate query operations, in general.
         # Also, only propagates if the operation has been successful.
-        if request.D_ID != DO_NOT_PROPAGATE and response_result == banking_pb2.SUCCESS: 
-            if request.OP == banking_pb2.DEPOSIT:
-                self.Propagate_Deposit(request.D_ID, request.Amount)
-            if request.OP == banking_pb2.WITHDRAW:
-                self.Propagate_Withdraw(request.D_ID, request.Amount)
+        if response_result == banking_pb2.SUCCESS:
+            if request.D_ID == DO_NOT_PROPAGATE:
+                self.propagateReceive()                     # Sets Clock for Propagation Received
+            else:
+                self.propagateSend()                        # Sets Clock for Propagation Received
+                if request.OP == banking_pb2.DEPOSIT:
+                    self.Propagate_Deposit(request.D_ID, request.Amount)
+                if request.OP == banking_pb2.WITHDRAW:
+                    self.Propagate_Withdraw(request.D_ID, request.Amount)
         
         return response
 

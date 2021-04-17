@@ -37,13 +37,14 @@ def MyLog (logger, LogMessage, obj=None):
     logger.info(LogMessage)
     sys.stdout.flush()
     if (sg != NotImplemented):
-        if (obj.window != None):
-            print(LogMessage)
-            if (hasattr(obj, "balance")):
-                obj.window.FindElement('-WINDOWTEXT-').update(f"Balance: {obj.balance} - Local Clock: {obj.local_clock}")
-            else:
-                obj.window.FindElement('-WINDOWTEXT-').update(f"Local Clock: {obj.local_clock}")
-            obj.window.Refresh()
+        if (hasattr(obj, "window")):
+            if (obj.window != None):
+                print(LogMessage)
+                if (hasattr(obj, "balance")):
+                    obj.window.FindElement('-WINDOWTEXT-').update(f"Balance: {obj.balance} - Local Clock: {obj.local_clock}")
+                else:
+                    obj.window.FindElement('-WINDOWTEXT-').update(f"Local Clock: {obj.local_clock}")
+                obj.window.Refresh()
 
 
 # Utility functions, used for readability
