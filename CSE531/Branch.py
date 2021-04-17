@@ -82,7 +82,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
             f'[Branch {self.id}] Received request ID {request.REQ_ID} from {CustomerText} - '
             f'Operation: {get_operation_name(request.OP)} - '
             f'Amount: {request.Amount}')
-        MyLog(logger, LogMessage, self.window)
+        MyLog(logger, LogMessage, self)
             
         if request.OP == banking_pb2.QUERY:
             response_result, balance_result = self.Query()
@@ -105,7 +105,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
             f'Result: {get_result_name(response_result)} - '
             f'New balance: {balance_result}'
         )
-        MyLog(logger, LogMessage, self.window)
+        MyLog(logger, LogMessage, self)
 
         response = banking_pb2.MsgDeliveryResponse(
             ID=request.REQ_ID,
@@ -119,7 +119,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
             f'Result: {get_result_name(response_result)} - '
             f'New balance: {balance_result}' 
         )
-        MyLog(logger, LogMessage, self.window)
+        MyLog(logger, LogMessage, self)
 
         # If DO_NOT_PROPAGATE it means it has arrived from another branch and it must not be
         # spread further.  Also, thre is no need to propagate query operations, in general.
@@ -213,7 +213,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
                 LogMessage = (
                     f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.DEPOSIT)} request ID {request_id} '
                     f'amount {amount} with clock {self.local_clock} to Branch {stub[0]} @{stub[1]}')
-                MyLog(logger, LogMessage, self.window)
+                MyLog(logger, LogMessage, self)
                         
                 try:
                     msgStub = banking_pb2_grpc.BankingStub(grpc.insecure_channel(stub[1]))
@@ -240,7 +240,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
                     else:
                         LogMessage = (f'[Branch {self.id}] Error on request ID {request_id}: Code: {code} - Details: {details}')
 
-                MyLog(logger, LogMessage, self.window)
+                MyLog(logger, LogMessage, self)
 
 
     def Propagate_Withdraw(self, request_id, amount):
@@ -254,14 +254,14 @@ class Branch(banking_pb2_grpc.BankingServicer):
         Returns: The updated Branch balance after the amount withdrawn
 
         """        
-        for stub in self.stubList:
+        for stub in self.branchList:
 
             if self.id != stub[0]:
 
                 LogMessage = (
                     f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.WITHDRAW)} request ID {request_id} '
                     f'amount {amount} with clock {self.local_clock} to Branch {stub[0]} @{stub[1]}')
-                MyLog(logger, LogMessage, self.window)
+                MyLog(logger, LogMessage, self)
 
                 try:
                     msgStub = banking_pb2_grpc.BankingStub(grpc.insecure_channel(stub[1]))
@@ -289,7 +289,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
                     else:
                         LogMessage = (f'[Branch {self.id}] Error on request ID {request_id}: Code: {code} - Details: {details}')
 
-                MyLog(logger, LogMessage, self.window)
+                MyLog(logger, LogMessage, self)
 
     # Not used anymore
     #
@@ -307,6 +307,102 @@ class Branch(banking_pb2_grpc.BankingServicer):
     #                 f'[Branch {self.id}] Initializing to Branch #{branches_addresses_ids[i][0]} stub at {branches_addresses_ids [i][1]}')
     #             MyLog(logger, LogMessage)
     #             self.stubList.append(banking_pb2_grpc.BankingStub(grpc.insecure_channel(branches_addresses_ids [i][1])))
+
+    def eventReceive(self, passed_clock):
+        """ Implementation of sub-interface "eventReceive".            
+            This subevent happens when the Branch process receives a request
+            from the Customer process. The Branch process selects the larger
+            value between the local clock and the remote clock from the message,
+            and increments one from the selected value.  
+            
+        Args:
+            self:           Branch class
+            passed_clock:   The clock to compare to the local one
+
+        Returns: None
+
+        """
+        self.local_clock = max(self.local_clock, passed_clock) + 1
+
+    def eventExecute(self):
+        """ Implementation of sub-interface "eventExecute".
+            This subevent happens when the Branch process executes the event
+            after the subevent “Event Request”. The Branch process increments
+            one from its local clock.  
+
+        Args:
+            self:           Branch class
+
+        Returns: None
+
+        """
+        self.local_clock = self.local_clock + 1
+
+    def propagateSend(self):
+        """ Interface to set the clock tick for "propagateSend".
+            This subevent happens when the Branch process receives the
+            propagation request to its fellow branch processes. The Branch
+            process increments one from its local clock.
+            
+        Returns: None
+
+        """
+        self.local_clock = self.local_clock + 1
+
+    def propagateReceive(self, passed_clock):
+        """ Implementation of sub-interface "propagateReceive".
+            This subevent happens when the Branch receives the propagation request
+            from its fellow branches. The Branch process selects the biggest value
+            between the local clock and the remote clock from the message, and
+            increments one from the selected value.            
+            
+        Args:
+            self:           Branch class
+            passed_clock:   The clock to compare to the local one
+
+        Returns: None
+
+        """
+        self.local_clock = max(self.local_clock, passed_clock) + 1
+
+    def propagateExecute(self):
+        """ Interface to set the clock tick for "propagateExecute".
+            This subevent happens when the Branch process executes
+            the event after the subevent “Propogate_Request”. The
+            Branch process increments one from its local clock.          
+            
+        Returns: None
+
+        """
+        self.local_clock = self.local_clock + 1
+
+    def eventResponse(self):
+        """ Interface to set the clock tick for "eventResponse".
+            This subevent happens after all the propagation
+            responses are returned from the branches. The branch
+            returns success - fail back to the Customer process.
+            The Branch process increments one from its local clock.
+
+        Returns: None
+
+        """
+        self.local_clock = self.local_clock + 1
+
+
+
+    # def register_event(self, id_, name, clock):
+    #     """ Adds an event to the list of processed events by the branch process
+
+    #     Args:
+    #         id_: Event id
+    #         name: Event Name
+    #         clock: Clock tick
+
+    #     Returns: None
+
+    #     """
+    #     self.events.append({'id': id_, 'name': name, 'clock': clock})
+
 
 
 def Wait_Loop(Branch):
@@ -362,7 +458,7 @@ def Run_Branch(Branch, THREAD_CONCURRENCY):
 
     if (sg != NotImplemented):
         layout = [
-            [sg.Text(f"Initial Balance: {Branch.balance} - Initial Local Clock: {Branch.local_clock}", size=(40,1), justification="left")],
+            [sg.Text(f"Balance: {Branch.balance} - Local Clock: {Branch.local_clock}", size=(40,1), justification="left", key='-WINDOWTEXT-')],
             [sg.Output(size=(90,15))],
             [sg.Button("Close", tooltip='Terminates Branch')]
         ]

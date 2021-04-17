@@ -46,8 +46,7 @@ class Customer:
     #
     def createStub(self, Branch_address, THREAD_CONCURRENCY):
         """ Boots a client (customer) stub in a subprocess
-
-        If PySimpleGUI/TK are installed, launches a window in the Windows' Manager.
+            If PySimpleGUI/TK are installed, launches a window in the Windows' Manager.
 
         Args:
             Self:               Customer class
@@ -65,6 +64,7 @@ class Customer:
 
         if (sg != NotImplemented):
             layout = [
+                [sg.Text(f"Local Clock: {self.local_clock}", size=(40,1), justification="left", key='-WINDOWTEXT-')],
                 [sg.Text("Operations Loaded:", size=(60,1), justification="left")],
                 [sg.Listbox(values=self.events, size=(60, 3))],
                 [sg.Output(size=(80,12))],
@@ -87,9 +87,6 @@ class Customer:
     #
     def executeEvents(self, output_file):
         """Execute customer's events."""
-        
-        # DEBUG
-        #MyLog(logger,f'Executing events for Customer #{self.id}')
                 
         record = {'id': self.id, 'recv': []}
         for event in self.events:
@@ -103,7 +100,7 @@ class Customer:
                     f'[Customer {self.id}] executing request ID {request_id} against Branch - '
                     f'Operation: {get_operation_name(request_operation)} - '
                     f'Initial balance: {request_amount} - Clock: {self.local_clock}')
-                MyLog(logger, LogMessage, self.window)
+                MyLog(logger, LogMessage, self)
 
                 response = self.stub.MsgDelivery(
                     banking_pb2.MsgDeliveryRequest(
@@ -123,7 +120,7 @@ class Customer:
                     'interface': get_operation_name(request_operation),
                     'result': get_result_name(response.RC),
                 }
-                MyLog(logger, LogMessage, self.window)
+                MyLog(logger, LogMessage, self)
 
                 if request_operation == banking_pb2.QUERY:
                     values['money'] = response.Amount
@@ -144,17 +141,13 @@ class Customer:
                     LogMessage = (f'[Customer {self.id}] Error on Request #{request_id}: Branch {self.id} likely unavailable - Code: {code} - Details: {details}')
                 else:
                     LogMessage = (f'[Customer {self.id}] Error on Request #{request_id}: Code: {code} - Details: {details}')
-                MyLog(logger, LogMessage, self.window)
+                MyLog(logger, LogMessage, self)
  
     # Spawn the Customer process client. No need to bind to a port here; rather, we are connecting to one.
     #
     def Run_Customer(self, Branch_address, output_file, THREAD_CONCURRENCY):
         """Start a client (customer) in a subprocess."""
-        # DEBUG
-        #MyLog(logger,f'Processing Customer #{self.id} with Events:' )
-        #for e in self.events:
-        #    MyLog(logger,f'    #{e["id"]} = {e["interface"]}, {e["money"]}' )
-                
+
         MyLog(logger,f'[Customer {self.id}] Booting...')
 
         Customer.createStub(self, Branch_address, THREAD_CONCURRENCY)
@@ -169,7 +162,6 @@ class Customer:
                     # End program if user closes window or
                     # presses the Close button
                     if wevent == "Close" or wevent == sg.WIN_CLOSED:
-                        #MyLog(logger,f'Customer #{self.id} connecting to server {Branch_address} did not execute events.')
                         MyLog(logger,f'[Customer {self.id}] Closing windows.')
                         break
                     if wevent == "Run":

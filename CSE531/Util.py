@@ -19,10 +19,11 @@ except ImportError:
 
 # Force this if you want no graphical windows' interface, even with PySimpleGUI and TK installed.
 # Commented = windows, uncommented = text only
-sg = NotImplemented
+#sg = NotImplemented
 
 # Global logger
 def setup_logger (name):
+    """Sets up the Global Logger"""
     logger = logging.getLogger(name)
     handler = logging.StreamHandler(sys.stdout)
     formatter = logging.Formatter('[PID %(process)d %(asctime)s] %(message)s')
@@ -31,15 +32,18 @@ def setup_logger (name):
     logger.setLevel(logging.INFO)
     return logger
 
-def MyLog (logger, LogMessage, window=None):
+def MyLog (logger, LogMessage, obj=None):
+    """Prints the log to STDOUT, and if used, updates PySimpleGUI windows"""
     logger.info(LogMessage)
     sys.stdout.flush()
     if (sg != NotImplemented):
-        if (window != None):
-            print(
-                LogMessage
-            )
-            window.Refresh()
+        if (obj.window != None):
+            print(LogMessage)
+            if (hasattr(obj, "balance")):
+                obj.window.FindElement('-WINDOWTEXT-').update(f"Balance: {obj.balance} - Local Clock: {obj.local_clock}")
+            else:
+                obj.window.FindElement('-WINDOWTEXT-').update(f"Local Clock: {obj.local_clock}")
+            obj.window.Refresh()
 
 
 # Utility functions, used for readability
