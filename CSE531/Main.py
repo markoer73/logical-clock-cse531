@@ -12,7 +12,6 @@ import multiprocessing
 
 import contextlib
 import socket
-import argparse
 import json
 import array
 import socketserver
@@ -24,7 +23,7 @@ from operator import itemgetter, attrgetter
 from concurrent import futures
 from Branch import Branch, Run_Branch
 from Customer import Customer
-from Util import setup_logger, MyLog, sg, SLEEP_SECONDS, PRETTY_JSON
+from Util import setup_logger, MyLog, sg, SLEEP_SECONDS, PRETTY_JSON, Process_Args
 
 import grpc
 
@@ -38,29 +37,6 @@ import banking_pb2_grpc
 THREAD_CONCURRENCY = multiprocessing.cpu_count()
 #THREAD_CONCURRENCY = 2
 
-def Process_Args():
-    """Parse arguments."""
-    _Input = _Output = _Clock = _Pretty = None
-    all_args = argparse.ArgumentParser(description='Input, Output, Clock file names')
-    all_args.add_argument('-i', '--Input', required=False, help='File name containing branches and customers, in JSON format (optional; defaults to input.json')
-    all_args.add_argument('-o', '--Output', required=False, help='Output file name to use (optional; defaults to output.json)')
-    all_args.add_argument('-c', '--Clock', required=False, help='Output file from branches to use for logical clock exercise 2 (optional; if not provided, behaves as exercise 1)')
-    all_args.add_argument('-p', '--Pretty', required=False, help='Pretty Print JSON output (default=False)')
-    args = all_args.parse_args()
-    if (args.Input != None):
-        _Input = args.Input.strip()
-    if (args.Output != None):
-        _Output = args.Output.strip()
-    if (args.Clock != None):
-        _Clock = args.Clock.strip()
-    if (args.Pretty != None):
-        if ((args.Pretty.strip().lower() == "true") or (args.Pretty.strip().lower() == "yes")):
-            _Pretty = True
-    else:
-        _Pretty = False
-
-    return _Input, _Output, _Clock, _Pretty
-
 # Load input file with branches and customers
 #
 def Load_Input_File(filename, branches_list, customers_list):
@@ -69,7 +45,6 @@ def Load_Input_File(filename, branches_list, customers_list):
         file = open(filename)
     except OSError:
         raise RuntimeError(f'Failed to open {filename}.')
-    
     items = json.load(file)
     
     # Retrieves:
@@ -100,7 +75,6 @@ def Load_Input_File(filename, branches_list, customers_list):
 
     file.close()
 
-
 # Utility function to reserve a port for the Branches' servers.
 # Always find an usable TCP/IP port on localhost.
 #
@@ -127,13 +101,16 @@ def main():
 
     MyLog(logger, f'[Main] *** Processing Arguments ***')
 
-    input_file, output_file, clock_file, PRETTY_JSON = Process_Args()
+    input_file, output_file, clock_file, _sg_windows, _pretty_json = Process_Args()
     if not input_file:
         input_file = 'input.json'
     if not output_file:
         output_file = 'output.json'
     branches_list = list()
     customers_list = list()
+    if (not(_sg_windows)):
+        sg = NotImplemented
+    PRETTY_JSON = _pretty_json
 
     MyLog(logger, f'[Main] *** Processing Input File ***')
 
@@ -286,9 +263,11 @@ def main():
                 })
 
             if (PRETTY_JSON):
-                json.dump(event_dict, outfile, indent=2)
+                if (event_dict.len() > 1):
+                    json.dump(event_dict, outfile, indent=2)
             else:
-                json.dump(event_dict, outfile)
+                if (event_dict.len() > 1):
+                    json.dump(event_dict, outfile)
 
             outfile.close()
 

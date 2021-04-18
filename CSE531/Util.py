@@ -8,20 +8,22 @@
 
 import logging
 import sys
+import argparse
 
 import banking_pb2
 import banking_pb2_grpc
 
+# Implements PySimpleGUI and TK for graphical windows if they are installed.
+# Overridden by command line (-w). Command line is not useful, obviously, if
+# PySimpleGUI and TK are not functioning.
 try:
     import PySimpleGUI as sg                #  Better than CTRL+c
 except ImportError:
     sg = NotImplemented
 
-# Force this if you want no graphical windows' interface, even with PySimpleGUI and TK installed.
-# Commented = windows, uncommented = text only
-#sg = NotImplemented
-
 SLEEP_SECONDS = 1
+
+# Prettify JSON output. Overridden by command line (-p).
 PRETTY_JSON = False
 
 # Global logger
@@ -49,6 +51,44 @@ def MyLog (logger, LogMessage, obj=None):
                         update_string += (f" - Local Clock: {obj.local_clock}")
                     obj.window.FindElement('-WINDOWTEXT-').update(update_string)
                 obj.window.Refresh()
+
+def Process_Args():
+    """Parse command-line arguments."""
+    _Input = _Output = _Clock = _Windows = _Pretty = None
+    all_args = argparse.ArgumentParser(description='Input, Output, Clock file names')
+    all_args.add_argument('-i', '--Input', required=False, help='File name containing branches and customers, in JSON format (optional; defaults to input.json')
+    all_args.add_argument('-o', '--Output', required=False, help='Output file name to use (optional; defaults to output.json)')
+    all_args.add_argument('-c', '--Clock', required=False, help='Output file from branches - enables Lampard\'s logical clocks (optional; if not provided, clocks are disabled)')
+    all_args.add_argument('-w', '--Windows', required=False, help='Enables use of graphical windows/user interactivity (default=False)')
+    all_args.add_argument('-p', '--Pretty', required=False, help='Pretty Print JSON output (default=False)')
+    args = all_args.parse_args()
+    if (args.Input != None):
+        _Input = args.Input.strip()
+    if (args.Output != None):
+        _Output = args.Output.strip()
+    if (args.Clock != None):
+        _Clock = args.Clock.strip()
+    if (args.Windows != None):
+        if ((args.Windows.strip().lower() == "true") or (args.Windows.strip().lower() == "yes")):
+            _Windows = True
+        else:
+            _Windows = False
+            sg = NotImplemented
+    else:
+        _Windows = False
+        sg = NotImplemented
+    if (args.Pretty != None):
+        if ((args.Pretty.strip().lower() == "true") or (args.Pretty.strip().lower() == "yes")):
+            _Pretty = True
+            PRETTY_JSON = True
+        else:
+            _Pretty = False
+            PRETTY_JSON = False
+    else:
+        _Pretty = False
+        PRETTY_JSON = False
+
+    return _Input, _Output, _Clock, _Windows, _Pretty
 
 # Utility functions, used for readability
 #
