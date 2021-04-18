@@ -23,7 +23,7 @@ from operator import itemgetter, attrgetter
 from concurrent import futures
 from Branch import Branch, Run_Branch
 from Customer import Customer
-from Util import setup_logger, MyLog, sg, SLEEP_SECONDS, PRETTY_JSON, Process_Args
+from Util import setup_logger, MyLog, sg, SLEEP_SECONDS, PRETTY_JSON, Process_Args, THREAD_CONCURRENCY
 
 import grpc
 
@@ -33,9 +33,6 @@ import banking_pb2_grpc
 # Multiprocessing code reused from https://github.com/grpc/grpc/tree/801c2fd832ec964d04a847c6542198db093ff81d/examples/python/multiprocessing
 #
 
-# setup a maximum number of thread concurrency following the number of CPUs x cores enumerated by Python
-THREAD_CONCURRENCY = multiprocessing.cpu_count()
-#THREAD_CONCURRENCY = 2
 
 # Load input file with branches and customers
 #
@@ -108,8 +105,6 @@ def main():
         output_file = 'output.json'
     branches_list = list()
     customers_list = list()
-    if (not(_sg_windows)):
-        sg = NotImplemented
     PRETTY_JSON = _pretty_json
 
     MyLog(logger, f'[Main] *** Processing Input File ***')
@@ -136,6 +131,7 @@ def main():
             curr_branch.clock_events = None
             curr_branch.clock_output = None
         else:
+            # Creates temporary files to store branches' events. To be improved in future versions using multiprocessor.Manager.
             curr_branch.clock_events = list()
             curr_branch.clock_output = tempfile.NamedTemporaryFile(mode='w+', delete = False)
             curr_branch.clock_output.write('\n')
@@ -151,18 +147,12 @@ def main():
 
     for curr_branch in branches_list:
         worker = multiprocessing.Process(name=f'Branch-{curr_branch.id}', target=Run_Branch,
-                                            args=(curr_branch,clock_file,THREAD_CONCURRENCY))
+                                            args=(curr_branch,clock_file,_sg_windows,THREAD_CONCURRENCY))
         worker.start()
         workers.append(worker)
 
         MyLog(logger, f'[Main] Booting branch \"{worker.name}\" on initial balance {curr_branch.balance}), '
                         f'with PID {worker.pid} at address {curr_branch.bind_address} successfully')
-
-    if (sg == NotImplemented):
-        # Wait some seconds before initialising the clients, to give time the servers to start
-        MyLog(logger, f'[Main] *** Waiting for {SLEEP_SECONDS} seconds before starting the clients ***')
-        MyLog(logger, f'[Main]     (Otherwise it will sometimes fail when the computer is slow)')
-        time.sleep(SLEEP_SECONDS)
 
     # Spawns processes for customers
     #
@@ -187,7 +177,12 @@ def main():
                 break
         
         worker = multiprocessing.Process(name=f'Customer-{curr_customer.id}', target=Customer.Run_Customer,
-                                            args=(curr_customer,Branch_address,output_file,THREAD_CONCURRENCY))
+                                            args=(curr_customer,Branch_address,output_file,_sg_windows,THREAD_CONCURRENCY))
+        if (sg == NotImplemented and SLEEP_SECONDS):
+            # Wait some seconds before initialising the clients, to give time the servers to start
+            MyLog(logger, f'[Main] *** Waiting for {SLEEP_SECONDS} seconds before starting the clients ***')
+            MyLog(logger, f'[Main]     (Otherwise it will sometimes fail when the computer is slow)')
+            time.sleep(SLEEP_SECONDS)
         worker.start()
         workers.append(worker)
         
@@ -263,10 +258,10 @@ def main():
                 })
 
             if (PRETTY_JSON):
-                if (event_dict.len() > 1):
+                if any((event_dict.get('data'))):
                     json.dump(event_dict, outfile, indent=2)
             else:
-                if (event_dict.len() > 1):
+                if any((event_dict.get('data'))):
                     json.dump(event_dict, outfile)
 
             outfile.close()

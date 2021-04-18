@@ -47,7 +47,7 @@ message MsgDeliveryResponse {
 // }
 
 // message Event {
-// 	int64 id_ = 1;
-// 	string name = 2;
-// 	int64 clock = 3;
+// 	int64 ID = 1;
+// 	string OP = 2;
+// 	int64 Clock = 3;
 // }

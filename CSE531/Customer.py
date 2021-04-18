@@ -22,6 +22,8 @@ import banking_pb2_grpc
 ONE_DAY = datetime.timedelta(days=1)
 logger = setup_logger("Customer")
 
+client_lock = multiprocessing.Lock()
+
 class Customer:
     """ Customer class definition """
 
@@ -39,25 +41,26 @@ class Customer:
 
     # Create stub for the customer, matching them with their respective branch
     #
-    def createStub(self, Branch_address, THREAD_CONCURRENCY):
-        """ Boots a client (customer) stub in a subprocess
-            If PySimpleGUI/TK are installed, launches a window in the Windows' Manager.
+    def createStub(self, Branch_address, want_windows=False, THREAD_CONCURRENCY=1):
+        """
+        Boots a client (customer) stub in a subprocess.
+        If PySimpleGUI/TK are installed and in mode 2, launches a window in the Windows' Manager.
 
         Args:
             Self:               Customer class
             Branch_address:     TCP/IP address/port where to fund the Branch to connect to
+            want_windows:       Boolean, True if graphical windows are desired as UX
             THREAD_CONCURRENCY: Integer, number of threads concurrency
 
         Returns:
             None
 
         """
-        
         MyLog(logger, f'[Customer {self.id}] Initializing customer stub to branch stub at {Branch_address}')
         
         self.stub = banking_pb2_grpc.BankingStub(grpc.insecure_channel(Branch_address))
 
-        if (sg != NotImplemented):
+        if ((sg != NotImplemented) and want_windows):
             layout = [
                 [sg.Text("Operations Loaded:", size=(60,1), justification="left")],
                 [sg.Listbox(values=self.events, size=(60, 3))],
@@ -68,9 +71,10 @@ class Customer:
 
             # Create the window
             sg.theme('Dark Green 5')
+            w, h = sg.Window.get_screen_size()
             self.window = sg.Window(f"Customer #{self.id} -> To Branch @ {Branch_address}"
                 , layout
-                , location=(100*(self.id)+20,100*self.id)
+                , location=(50*(self.id)+10,h/5*(self.id-1)+50)
             )
 
         client = grpc.server(futures.ThreadPoolExecutor(max_workers=THREAD_CONCURRENCY,),)
@@ -79,9 +83,20 @@ class Customer:
     # Iterate through the list of the customer's events, sends the messages,
     # and output to the JSON file
     #
-    def executeEvents(self, output_file):
-        """Execute customer's events."""
-                
+    def executeEvents(self, output_file, want_windows=False):
+        """
+        Boots a client (customer) stub in a subprocess.
+        If PySimpleGUI/TK are installed and in mode 2, launches a window in the Windows' Manager.
+
+        Args:
+            Self:               Customer class
+            output_file:        Logging file where to save customer's events
+            want_windows:       Boolean, True if graphical windows are desired as UX
+
+        Returns:
+            None
+
+        """                
         record = {'id': self.id, 'recv': []}
         for event in self.events:
             request_id = event['id']
@@ -95,13 +110,17 @@ class Customer:
                     f'Initial balance: {request_amount}')
                 MyLog(logger, LogMessage, self)
 
+                # The customer's clock is not used in gRPC and Lampard's algorithm, but will be
+                # likely used in the Client Consistency's exercise.
+                # In the logical clock assignment (Lampars's algorithm), it is checked, but the configuration
+                # file for customers does not allow setting it anyway.
                 response = self.stub.MsgDelivery(
                     banking_pb2.MsgDeliveryRequest(
                         REQ_ID=request_id,
                         OP=request_operation,
                         Amount=request_amount,
                         D_ID=self.id,
-#                        Clock=None
+                        Clock=0
                     )
                 )
                 
@@ -138,32 +157,32 @@ class Customer:
  
     # Spawn the Customer process client. No need to bind to a port here; rather, we are connecting to one.
     #
-    def Run_Customer(self, Branch_address, output_file, THREAD_CONCURRENCY):
+    def Run_Customer(self, Branch_address, output_file, want_windows=False, THREAD_CONCURRENCY=1):
         """Start a client (customer) in a subprocess."""
 
         MyLog(logger,f'[Customer {self.id}] Booting...')
 
-        Customer.createStub(self, Branch_address, THREAD_CONCURRENCY)
+        Customer.createStub(self, Branch_address, want_windows, THREAD_CONCURRENCY)
 
-        if (sg != NotImplemented):
-            if (self.window != None):
+        if ((sg != NotImplemented) and want_windows and (self.window != None)):
+            # Start events with "Run"
+            while True:
+                wevent, values = self.window.read()
                 
-                # Start events with "Run"
-                while True:
-                    wevent, values = self.window.read()
-                    
-                    # End program if user closes window or
-                    # presses the Close button
-                    if wevent == "Close" or wevent == sg.WIN_CLOSED:
-                        MyLog(logger,f'[Customer {self.id}] Closing windows.')
-                        break
-                    if wevent == "Run":
-                        MyLog(logger,f'[Customer {self.id}] Executing events...')
-                        Customer.executeEvents(self, output_file)
-                        MyLog(logger,f'[Customer {self.id}] Events executed. Exiting successfully.')
-                        break
+                # End program if user closes window or
+                # presses the Close button
+                if wevent == "Close" or wevent == sg.WIN_CLOSED:
+                    MyLog(logger,f'[Customer {self.id}] Closing windows.')
+                    break
+                if wevent == "Run":
+                    MyLog(logger,f'[Customer {self.id}] Executing events...')
+#                    with client_lock:
+                    Customer.executeEvents(self, output_file, want_windows)
+                    MyLog(logger,f'[Customer {self.id}] Events executed. Exiting successfully.')
+                    break
 
-                self.window.close()
+            self.window.close()
         else:
-            Customer.executeEvents(self, output_file)
-            MyLog(logger,f'[Customer {self.id}] Exiting successfully.')
+ #           with client_lock:
+            Customer.executeEvents(self, output_file, want_windows)
+            MyLog(logger,f'[Customer {self.id}] Events executed. Exiting successfully.')

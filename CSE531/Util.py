@@ -9,6 +9,7 @@
 import logging
 import sys
 import argparse
+import multiprocessing
 
 import banking_pb2
 import banking_pb2_grpc
@@ -21,10 +22,16 @@ try:
 except ImportError:
     sg = NotImplemented
 
-SLEEP_SECONDS = 1
+# Sometimes required to unstuck processes - but generally not used
+#SLEEP_SECONDS = 3
+SLEEP_SECONDS = 0
 
 # Prettify JSON output. Overridden by command line (-p).
 PRETTY_JSON = False
+
+# setup a maximum number of thread concurrency following the number of CPUs x cores enumerated by Python
+THREAD_CONCURRENCY = multiprocessing.cpu_count()
+#THREAD_CONCURRENCY = 2
 
 # Global logger
 def setup_logger (name):
@@ -41,16 +48,14 @@ def MyLog (logger, LogMessage, obj=None):
     """Prints the log to STDOUT, and if used, updates PySimpleGUI windows"""
     logger.info(LogMessage)
     sys.stdout.flush()
-    if (sg != NotImplemented):
-        if (hasattr(obj, "window")):
-            if (obj.window != None):
-                print(LogMessage)
-                if (hasattr(obj, "balance")):
-                    update_string = (f"Balance: {obj.balance}")
-                    if (obj.local_clock != None):
-                        update_string += (f" - Local Clock: {obj.local_clock}")
-                    obj.window.FindElement('-WINDOWTEXT-').update(update_string)
-                obj.window.Refresh()
+    if ((sg != NotImplemented) and (hasattr(obj, "window")) and (obj.window != None)):
+        print(LogMessage)
+        if (hasattr(obj, "balance")):
+            update_string = (f"Balance: {obj.balance}")
+            if (obj.local_clock != None):
+                update_string += (f" - Local Clock: {obj.local_clock}")
+            obj.window.FindElement('-WINDOWTEXT-').update(update_string)
+        obj.window.Refresh()
 
 def Process_Args():
     """Parse command-line arguments."""
