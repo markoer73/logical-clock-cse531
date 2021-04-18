@@ -13,12 +13,12 @@
         "clock": 5
       },
       {
-        "id": 3,
+        "id": 4,
         "name": "withdraw_broadcast_request",
         "clock": 11
       },
       {
-        "id": 3,
+        "id": 4,
         "name": "withdraw_execute",
         "clock": 12
       }
@@ -43,12 +43,12 @@
         "clock": 3
       },
       {
-        "id": 3,
+        "id": 4,
         "name": "withdraw_broadcast_request",
         "clock": 12
       },
       {
-        "id": 3,
+        "id": 4,
         "name": "withdraw_execute",
         "clock": 13
       }
@@ -118,8 +118,20 @@
     }
   ]
 }{
-  "eventid": 3,
+  "eventid": 4,
   "data": [
+    {
+      "clock": 8,
+      "name": "withdraw_request"
+    },
+    {
+      "clock": 9,
+      "name": "withdraw_execute"
+    },
+    {
+      "clock": 10,
+      "name": "withdraw_broadcast_execute"
+    },
     {
       "clock": 11,
       "name": "withdraw_broadcast_request"
@@ -135,22 +147,6 @@
     {
       "clock": 13,
       "name": "withdraw_execute"
-    }
-  ]
-}{
-  "eventid": 4,
-  "data": [
-    {
-      "clock": 8,
-      "name": "withdraw_request"
-    },
-    {
-      "clock": 9,
-      "name": "withdraw_execute"
-    },
-    {
-      "clock": 10,
-      "name": "withdraw_broadcast_execute"
     }
   ]
 }

@@ -166,12 +166,12 @@ class Branch(banking_pb2_grpc.BankingServicer):
                     if (self.clock_events != None):
                         self.propagateSend()                        # Sets clock for further propagation
                         self.register_event(request.REQ_ID, "deposit_broadcast_execute")
-                    self.Propagate_Deposit(request.D_ID, request.Amount)
+                    self.Propagate_Deposit(request.REQ_ID, request.Amount)
                 if request.OP == banking_pb2.WITHDRAW:
                     if (self.clock_events != None):
                         self.propagateSend()                        # Sets clock for further propagation
                         self.register_event(request.REQ_ID, "withdraw_broadcast_execute")
-                    self.Propagate_Withdraw(request.D_ID, request.Amount)
+                    self.Propagate_Withdraw(request.REQ_ID, request.Amount)
 
         LogMessage = (
             f'[Branch {self.id}] Event processing completed for request ID {request.REQ_ID} '
