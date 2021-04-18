@@ -86,6 +86,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
             CustomerText = (f'Customer {request.D_ID}')
             if (self.clock_events != None):
                 self.eventReceive(request.Clock)            # Event received from a customer
+                self.eventExecute()                         # Event is executed
             response_result, balance_result = self.Query()
 
         # If DO_NOT_PROPAGATE it means it has arrived from another branch and it must not be
@@ -153,6 +154,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
         MyLog(logger, LogMessage, self)
 
         # If DO_NOT_PROPAGATE it means it has arrived from another branch and it must not be
+
         # spread further.  Also, there is no need to propagate query operations, in general.
         # Finally, only propagates if the operation has been successful.
         if response_result == banking_pb2.SUCCESS:
@@ -170,6 +172,16 @@ class Branch(banking_pb2_grpc.BankingServicer):
                         self.propagateSend()                        # Sets clock for further propagation
                         self.register_event(request.REQ_ID, "withdraw_broadcast_execute")
                     self.Propagate_Withdraw(request.D_ID, request.Amount)
+
+        LogMessage = (
+            f'[Branch {self.id}] Event processing completed for request ID {request.REQ_ID} '
+            f'replied back to {CustomerText} - '
+            f'Result: {get_result_name(response_result)} - '
+            f'New balance: {balance_result}'
+        )
+        if (self.clock_events != None):
+            LogMessage += (f' - Clock: {self.local_clock}')
+        MyLog(logger, LogMessage, self)
 
         if (sg == NotImplemented):
             # Wait some seconds to allow execution of propagation in case of command line execution
