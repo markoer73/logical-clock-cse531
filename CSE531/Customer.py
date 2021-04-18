@@ -105,7 +105,7 @@ class Customer:
             
             try:
                 LogMessage = (
-                    f'[Customer {self.id}] executing request: ID {request_id} against Branch - '
+                    f'[Customer {self.id}] Executing request: ID {request_id} against Branch - '
                     f'Operation: {get_operation_name(request_operation)} - '
                     f'Initial balance: {request_amount}')
                 MyLog(logger, LogMessage, self)

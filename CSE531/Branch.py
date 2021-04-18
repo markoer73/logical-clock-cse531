@@ -105,27 +105,29 @@ class Branch(banking_pb2_grpc.BankingServicer):
                 if (self.clock_events != None):
                     self.propagateReceive(request.Clock)    # Event received from another branch
                     self.register_event(request.REQ_ID, "deposit_broadcast_request")
+                    self.eventExecute()                     # Event is executed
+                    self.register_event(request.REQ_ID, "deposit_broadcast_execute")
             else:
                 if (self.clock_events != None):
                     self.eventReceive(request.Clock)        # Event received from a customer
                     self.register_event(request.REQ_ID, "deposit_request")
-            if (self.clock_events != None):
-                self.eventExecute()                         # Event is executed
-                self.register_event(request.REQ_ID, "deposit_execute")
+                    self.eventExecute()                     # Event is executed
+                    self.register_event(request.REQ_ID, "deposit_execute")
             response_result, balance_result = self.Deposit(request.Amount)
-        
+         
         if request.OP == banking_pb2.WITHDRAW:
             if request.D_ID == DO_NOT_PROPAGATE:
                 if (self.clock_events != None):
                     self.propagateReceive(request.Clock)    # Event received from another branch
                     self.register_event(request.REQ_ID, "withdraw_broadcast_request")
+                    self.eventExecute()                     # Event is executed
+                    self.register_event(request.REQ_ID, "withdraw_broadcast_execute")
             else:
                 if (self.clock_events != None):
                     self.eventReceive(request.Clock)        # Event received from a customer
                     self.register_event(request.REQ_ID, "withdraw_request")
-            if (self.clock_events != None):
-                self.eventExecute()                         # Event is executed
-                self.register_event(request.REQ_ID, "withdraw_execute")
+                    self.eventExecute()                     # Event is executed
+                    self.register_event(request.REQ_ID, "withdraw_execute")
             response_result, balance_result = self.Withdraw(request.Amount)
 
         LogMessage = (
@@ -148,12 +150,12 @@ class Branch(banking_pb2_grpc.BankingServicer):
             if request.OP == banking_pb2.DEPOSIT:
                 if (self.clock_events != None):
                     self.propagateSend()                        # Sets clock for further propagation
-                    self.register_event(request.REQ_ID, "deposit_broadcast_execute")
+                    #self.register_event(request.REQ_ID, "deposit_broadcast_execute")
                 self.Propagate_Deposit(request.REQ_ID, request.Amount)
             if request.OP == banking_pb2.WITHDRAW:
                 if (self.clock_events != None):
                     self.propagateSend()                        # Sets clock for further propagation
-                    self.register_event(request.REQ_ID, "withdraw_broadcast_execute")
+                    #self.register_event(request.REQ_ID, "withdraw_broadcast_execute")
                 self.Propagate_Withdraw(request.REQ_ID, request.Amount)
 
         self.eventResponse()                                        # Call for eventResponse
@@ -164,7 +166,19 @@ class Branch(banking_pb2_grpc.BankingServicer):
             Amount=balance_result,
             Clock=self.local_clock
         )
-    
+
+        if (self.clock_events != None):
+            if request.OP == banking_pb2.DEPOSIT:
+                if request.D_ID == DO_NOT_PROPAGATE:
+                    self.register_event(request.REQ_ID, "deposit_broadcast_response")
+                else:
+                    self.register_event(request.REQ_ID, "deposit_response")
+            if request.OP == banking_pb2.WITHDRAW:
+                if request.D_ID == DO_NOT_PROPAGATE:
+                    self.register_event(request.REQ_ID, "withdraw_broadcast_response")
+                else:
+                    self.register_event(request.REQ_ID, "withdraw_response")
+
         LogMessage = (
             f'[Branch {self.id}] Sent response to request ID {request.REQ_ID} back to {CustomerText} - '
             f'Result: {get_result_name(response_result)} - '
