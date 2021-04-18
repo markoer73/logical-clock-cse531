@@ -17,11 +17,13 @@ import json
 import array
 import socketserver
 import time
+import tempfile
+import os
 
 from concurrent import futures
 from Branch import Branch, Run_Branch
 from Customer import Customer
-from Util import setup_logger, MyLog, sg
+from Util import setup_logger, MyLog, sg, SLEEP_SECONDS, PRETTY_JSON
 
 import grpc
 
@@ -34,15 +36,29 @@ import banking_pb2_grpc
 # setup a maximum number of thread concurrency following the number of CPUs x cores enumerated by Python
 THREAD_CONCURRENCY = multiprocessing.cpu_count()
 #THREAD_CONCURRENCY = 2
-SLEEP_SECONDS = 5
 
 def Process_Args():
     """Parse arguments."""
-    all_args = argparse.ArgumentParser(description='Input and Output file names')
+    _Input = _Output = _Clock = _Pretty = None
+    all_args = argparse.ArgumentParser(description='Input, Output, Clock file names')
     all_args.add_argument('-i', '--Input', required=False, help='File name containing branches and customers, in JSON format (optional; defaults to input.json')
     all_args.add_argument('-o', '--Output', required=False, help='Output file name to use (optional; defaults to output.json)')
+    all_args.add_argument('-c', '--Clock', required=False, help='Output file from branches to use for logical clock exercise 2 (optional; if not provided, behaves as exercise 1)')
+    all_args.add_argument('-p', '--Pretty', required=False, help='Pretty Print JSON output (default=False)')
     args = all_args.parse_args()
-    return args.Input.strip(), args.Output.strip()
+    if (args.Input != None):
+        _Input = args.Input.strip()
+    if (args.Output != None):
+        _Output = args.Output.strip()
+    if (args.Clock != None):
+        _Clock = args.Clock.strip()
+    if (args.Pretty != None):
+        if ((args.Pretty.strip().lower() == "true") or (args.Pretty.strip().lower() == "yes")):
+            _Pretty = True
+    else:
+        _Pretty = False
+
+    return _Input, _Output, _Clock, _Pretty
 
 # Load input file with branches and customers
 #
@@ -110,7 +126,7 @@ def main():
 
     MyLog(logger, f'[Main] *** Processing Arguments ***')
 
-    input_file, output_file = Process_Args()
+    input_file, output_file, clock_file, PRETTY_JSON = Process_Args()
     if not input_file:
         input_file = 'input.json'
     if not output_file:
@@ -135,7 +151,19 @@ def main():
     # Reserve the addresses for Branches
     for curr_branch in branches_list:
         curr_port = Reserve_Port()
+        # assign a port to each branch
         curr_branch.bind_address = '[::]:{}'.format(curr_port)
+        # set the clock events' list and local clock
+        if not clock_file:
+            curr_branch.clock_events = None
+            curr_branch.clock_output = None
+        else:
+            curr_branch.clock_events = list()
+            curr_branch.clock_output = tempfile.NamedTemporaryFile(mode='w+', delete = False)
+            curr_branch.clock_output.write('\n')
+            curr_branch.clock_output.close()
+            MyLog(logger, f'[Main] Temporary file \"{curr_branch.clock_output.name}\" for branch {curr_branch.id}')
+
         # save branch bind address for the customers and other branches to know
         branches_addresses_ids.append ([curr_branch.id, curr_branch.bind_address])
 
@@ -145,7 +173,7 @@ def main():
 
     for curr_branch in branches_list:
         worker = multiprocessing.Process(name=f'Branch-{curr_branch.id}', target=Run_Branch,
-                                            args=(curr_branch,THREAD_CONCURRENCY))
+                                            args=(curr_branch,clock_file,THREAD_CONCURRENCY))
         worker.start()
         workers.append(worker)
 
@@ -187,8 +215,32 @@ def main():
         
         MyLog(logger, f'[Main] Started Customer \"{worker.name}\" with PID {worker.pid} successfully.')
 
-    for worker in workers:
-        worker.join()
+    try:
+        for worker in workers:
+            worker.join()
+    except KeyboardInterrupt:
+        MyLog(logger,"[Main] CTRL+C requested")
+#        for worker in workers:
+#            worker.terminate()
+    
+    if clock_file:
+        records = []
+        total_records = []
+        for curr_branch in branches_list:
+            if curr_branch.clock_output:
+                with open(f'{curr_branch.clock_output.name}', 'r') as infile:
+                    records = json.load(infile)
+                    total_records.append(records)
+                os.remove(curr_branch.clock_output.name)
+        with open(f'{clock_file}', 'w+') as outfile:
+            if (PRETTY_JSON):
+                json.dump(total_records, outfile, indent=2)
+            else:
+                json.dump(total_records, outfile)
+            outfile.write('\n')
+            outfile.close()
+
+    MyLog(logger, f'[Main] Program Ended successfully.')
 
 
 logger = setup_logger("Main")

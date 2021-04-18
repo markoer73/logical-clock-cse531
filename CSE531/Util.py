@@ -4,7 +4,7 @@
 # Marco Ermini - March 2021 for ASU CSE531 Course
 # Do not leech!
 # Built with python 3.8 with GRPC and GRPC-tools libraries; may work with other Python versions
-'''Utility classes - logging, Windows manager, etc.'''
+'''Utility classes - logging, Windows manager, multi-threaded branch output, etc.'''
 
 import logging
 import sys
@@ -20,6 +20,9 @@ except ImportError:
 # Force this if you want no graphical windows' interface, even with PySimpleGUI and TK installed.
 # Commented = windows, uncommented = text only
 #sg = NotImplemented
+
+SLEEP_SECONDS = 1
+PRETTY_JSON = False
 
 # Global logger
 def setup_logger (name):
@@ -41,11 +44,11 @@ def MyLog (logger, LogMessage, obj=None):
             if (obj.window != None):
                 print(LogMessage)
                 if (hasattr(obj, "balance")):
-                    obj.window.FindElement('-WINDOWTEXT-').update(f"Balance: {obj.balance} - Local Clock: {obj.local_clock}")
-                else:
-                    obj.window.FindElement('-WINDOWTEXT-').update(f"Local Clock: {obj.local_clock}")
+                    update_string = (f"Balance: {obj.balance}")
+                    if (obj.local_clock != None):
+                        update_string += (f" - Local Clock: {obj.local_clock}")
+                    obj.window.FindElement('-WINDOWTEXT-').update(update_string)
                 obj.window.Refresh()
-
 
 # Utility functions, used for readability
 #

@@ -11,9 +11,10 @@ import time
 import datetime
 import sys
 import multiprocessing
+import json
 
 from concurrent import futures
-from Util import setup_logger, MyLog, sg, get_operation, get_operation_name, get_result_name
+from Util import setup_logger, MyLog, sg, get_operation, get_operation_name, get_result_name, SLEEP_SECONDS
 
 import grpc
 import banking_pb2
@@ -21,7 +22,7 @@ import banking_pb2_grpc
 
 ONE_DAY = datetime.timedelta(days=1)
 logger = setup_logger("Branch")
-SLEEP_SECONDS = 3
+
 
 # A constant used to indicate that the Branch must not propagate an operation. This is because a Branch receiving a message
 #   cannot distinguish between an operation is coming from a client or another branch or it has been received already.
@@ -40,7 +41,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
         # the list of process IDs of the branches
         self.branches = branches
         # the list of Client stubs to communicate with the branches
-        self.stubList = list()
+ #       self.stubList = list()
         # a list of received messages used for debugging purpose
         self.recvMsg = list()
         # Binded address
@@ -49,14 +50,17 @@ class Branch(banking_pb2_grpc.BankingServicer):
         self.branchList = list()
         # GUI Window handle, if used
         self.window = None
-        # Local logical clock
+        # Local logical clock, connected to logical clock exercise (not used otherwise)
         self.local_clock = 0
-        # List of events, including local clocks
-        self.events = list()
+        # List of events connected to logical clock exercise (not used otherwise)
+        self.clock_events = None
+        # Logical clock output file (not used otherwise)
+        self.clock_output = None
 
     def MsgDelivery(self, request, context):
-        """ Manages RPC calls coming into a branch from a
-            customer or another branch
+        """
+        Manages RPC calls coming into a branch from a customer or
+        another branch.
 
         Args:
             self:    Branch class
@@ -67,46 +71,69 @@ class Branch(banking_pb2_grpc.BankingServicer):
             MsgDeliveryResponse class (gRPC response object)
 
         """
-
         # Keep a copy of the requests
         self.recvMsg.append(request)
 
         balance_result = None
         response_result = None
-        
+
         if request.D_ID == DO_NOT_PROPAGATE:
             CustomerText = 'another Branch'
-            self.propagateReceive(request.Clock)        # Event received from another branch
         else:
             CustomerText = (f'Customer {request.D_ID}')
-            self.eventReceive(request.Clock)            # Event received from a customer
-        LogMessage = (
-            f'[Branch {self.id}] Received request: ID {request.REQ_ID} {CustomerText} - '
-            f'Operation: {get_operation_name(request.OP)} - '
-            f'Amount: {request.Amount} - Clock: {request.Clock}')
-        MyLog(logger, LogMessage, self)
-            
-        if request.OP == banking_pb2.QUERY:
-            response_result, balance_result = self.Query()
         
+        if request.OP == banking_pb2.QUERY:
+            CustomerText = (f'Customer {request.D_ID}')
+            if (self.clock_events != None):
+                self.eventReceive(request.Clock)            # Event received from a customer
+            response_result, balance_result = self.Query()
+
+        # If DO_NOT_PROPAGATE it means it has arrived from another branch and it must not be
+        # spread further.  Also, there is no need to propagate query operations, in general.
+        #        
         if request.OP == banking_pb2.DEPOSIT:
+            if request.D_ID == DO_NOT_PROPAGATE:
+                if (self.clock_events != None):
+                    self.propagateReceive(request.Clock)    # Event received from another branch
+                    self.register_event(request.REQ_ID, "deposit_broadcast_request")
+            else:
+                if (self.clock_events != None):
+                    self.eventReceive(request.Clock)        # Event received from a customer
+                    self.register_event(request.REQ_ID, "deposit_request")
             response_result, balance_result = self.Deposit(request.Amount)
+            if (self.clock_events != None):
+                self.eventExecute()                         # Event is executed
+                self.register_event(request.REQ_ID, "deposit_execute")
         
         if request.OP == banking_pb2.WITHDRAW:
+            if request.D_ID == DO_NOT_PROPAGATE:
+                if (self.clock_events != None):
+                    self.propagateReceive(request.Clock)    # Event received from another branch
+                    self.register_event(request.REQ_ID, "withdraw_broadcast_request")
+            else:
+                if (self.clock_events != None):
+                    self.eventReceive(request.Clock)        # Event received from a customer
+                    self.register_event(request.REQ_ID, "withdraw_request")
             response_result, balance_result = self.Withdraw(request.Amount)
+            if (self.clock_events != None):
+                self.eventExecute()                         # Event is executed
+                self.register_event(request.REQ_ID, "withdraw_execute")
 
-        # If necessary, sleeps
-        #time.sleep(SLEEP_SECONDS)
-
-        if request.D_ID == DO_NOT_PROPAGATE:
-            CustomerText = 'another Branch'
-        else:
-            CustomerText = (f'Customer {request.D_ID}')
+        LogMessage = (
+            f'[Branch {self.id}] Received request: ID {request.REQ_ID} from {CustomerText} - '
+            f'Operation: {get_operation_name(request.OP)} - '
+            f'Amount: {request.Amount}')
+        if (self.clock_events != None):
+            LogMessage += (f' - Clock: {request.Clock}')
+        MyLog(logger, LogMessage, self)
+            
         LogMessage = (
             f'[Branch {self.id}] Operation executed: {get_operation_name(request.OP)} request ID {request.REQ_ID} - '
             f'Result: {get_result_name(response_result)} - '
-            f'New balance: {balance_result} - Clock: {self.local_clock}'
+            f'New balance: {balance_result}'
         )
+        if (self.clock_events != None):
+            LogMessage += (f' - Clock: {self.local_clock}')
         MyLog(logger, LogMessage, self)
 
         response = banking_pb2.MsgDeliveryResponse(
@@ -119,27 +146,42 @@ class Branch(banking_pb2_grpc.BankingServicer):
         LogMessage = (
             f'[Branch {self.id}] Sent response to request ID {request.REQ_ID} back to {CustomerText} - '
             f'Result: {get_result_name(response_result)} - '
-            f'New balance: {balance_result} - Clock: {self.local_clock}' 
+            f'New balance: {balance_result}'
         )
+        if (self.clock_events != None):
+            LogMessage += (f' - Clock: {self.local_clock}')
         MyLog(logger, LogMessage, self)
 
         # If DO_NOT_PROPAGATE it means it has arrived from another branch and it must not be
-        # spread further.  Also, thre is no need to propagate query operations, in general.
-        # Also, only propagates if the operation has been successful.
+        # spread further.  Also, there is no need to propagate query operations, in general.
+        # Finally, only propagates if the operation has been successful.
         if response_result == banking_pb2.SUCCESS:
             if request.D_ID == DO_NOT_PROPAGATE:
-                self.propagateReceive()                     # Sets Clock for Propagation Received
+                if (self.clock_events != None):
+                    self.propagateReceive(request.Clock)            # Sets clock for propagation received
             else:
-                self.propagateSend()                        # Sets Clock for Propagation Received
                 if request.OP == banking_pb2.DEPOSIT:
+                    if (self.clock_events != None):
+                        self.propagateSend()                        # Sets clock for further propagation
+                        self.register_event(request.REQ_ID, "deposit_broadcast_execute")
                     self.Propagate_Deposit(request.D_ID, request.Amount)
                 if request.OP == banking_pb2.WITHDRAW:
+                    if (self.clock_events != None):
+                        self.propagateSend()                        # Sets clock for further propagation
+                        self.register_event(request.REQ_ID, "withdraw_broadcast_execute")
                     self.Propagate_Withdraw(request.D_ID, request.Amount)
-        
+
+        if (sg == NotImplemented):
+            # Wait some seconds to allow execution of propagation in case of command line execution
+            MyLog(logger, f'[Main] *** Waiting for {SLEEP_SECONDS} seconds to allow finish propagations ***')
+            MyLog(logger, f'[Main]     (Otherwise it will sometimes fail when the computer is slow)')
+            time.sleep(SLEEP_SECONDS)
+
         return response
 
     def Query(self):
-        """ Implements the Query interface
+        """
+        Implements the Query interface.
 
         Args:
             Self:   Branch class
@@ -150,7 +192,8 @@ class Branch(banking_pb2_grpc.BankingServicer):
         return banking_pb2.SUCCESS, self.balance
 
     def Deposit(self, amount):
-        """ Implements the Deposit interface
+        """
+        Implements the Deposit interface.
 
         Args:
             Self:   Branch class
@@ -171,7 +214,8 @@ class Branch(banking_pb2_grpc.BankingServicer):
         return banking_pb2.SUCCESS, new_balance         # success
 
     def Withdraw(self, amount):
-        """ Implements the Withdraw interface
+        """
+        Implements the Withdraw interface.
 
         Args:
             Self:   Branch class
@@ -192,7 +236,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
         """
         # Distinguish between error (cannot execute a certain operation) or failure (operation is valid, but for instance
         # there is not enough balance).
-        # This distinction is currently unused but can be used for further expansions of functionalities, such as overdraft.
+        # This distinction is used to distinguish between cases such as overdrafts and thread/OS errors.
         if amount <= 0:		        # invalid operation
             return banking_pb2.ERROR, 0
         new_balance = self.balance - amount
@@ -201,8 +245,9 @@ class Branch(banking_pb2_grpc.BankingServicer):
         self.balance = new_balance
         return banking_pb2.SUCCESS, new_balance
 
-    def Propagate_Deposit(self, request_id, amount):
-        """ Implements the propagation of the deposit to other branches.
+    def Propagate_Deposit(self, request_id, amount, proposed_clock=0):
+        """
+        Implements the propagation of the deposit to other branches.
 
         Args:
             Self:   Branch class
@@ -213,15 +258,23 @@ class Branch(banking_pb2_grpc.BankingServicer):
 
         """
         for stub in self.branchList:
-
-            if self.id != stub[0]:
-
-                LogMessage = (
-                    f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.DEPOSIT)} request ID {request_id} '
-                    f'amount {amount} with clock {self.local_clock} to Branch {stub[0]} @{stub[1]}')
+            if self.id != stub[0]:                          # Do not propagate to itself (should not happen, added security)
+                if (self.clock_events != None):             # Verify if in the logical clock case
+                    LogMessage = (
+                        f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.DEPOSIT)} request ID {request_id} '
+                        f'amount {amount} with clock {self.local_clock} to Branch {stub[0]} @{stub[1]}')
+                else:
+                    LogMessage = (
+                        f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.DEPOSIT)} request ID {request_id} '
+                        f'amount {amount} to Branch {stub[0]} @{stub[1]}')   
                 MyLog(logger, LogMessage, self)
                         
                 try:
+                    # if (self.clock_events != None):         # Verify if in the logical clock case
+                    #     clock_to_use = self.local_clock+1
+                    # else:
+                    #     clock_to_use = 0
+                    
                     msgStub = banking_pb2_grpc.BankingStub(grpc.insecure_channel(stub[1]))
                     response = msgStub.MsgDelivery(
                         banking_pb2.MsgDeliveryRequest(
@@ -229,13 +282,17 @@ class Branch(banking_pb2_grpc.BankingServicer):
                             OP=banking_pb2.DEPOSIT,
                             Amount=amount,
                             D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
-                            Clock=self.local_clock
+                            Clock=clock_to_use
                         )
                     )
                     LogMessage = (
                         f'[Branch {self.id}] received response to request ID {request_id} to Branch @{stub[1]} - '
                         f'Operation: {get_operation_name(banking_pb2.DEPOSIT)} - Result: {get_result_name(response.RC)} - '
-                        f'New balance: {response.Amount} - Clock: {response.Clock}')
+                        f'New balance: {response.Amount}')
+                    if (self.clock_events != None):         # Verify if in the logical clock case
+                        LogMessage += (f' - Clock: {response.Clock}')
+
+                    self.eventResponse()                    # Call for eventResponse
                     
                 except grpc.RpcError as rpc_error_call:
                     code = rpc_error_call.code()
@@ -249,8 +306,9 @@ class Branch(banking_pb2_grpc.BankingServicer):
                 MyLog(logger, LogMessage, self)
 
 
-    def Propagate_Withdraw(self, request_id, amount):
-        """ Implements the propagation of the withdraw to other branches.
+    def Propagate_Withdraw(self, request_id, amount, proposed_clock=0):
+        """
+        Implements the propagation of the withdraw to other branches.
 
         Args:
             Self:   Branch class
@@ -261,15 +319,22 @@ class Branch(banking_pb2_grpc.BankingServicer):
 
         """        
         for stub in self.branchList:
-
-            if self.id != stub[0]:
-
-                LogMessage = (
-                    f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.WITHDRAW)} request ID {request_id} '
-                    f'amount {amount} with clock {self.local_clock} to Branch {stub[0]} @{stub[1]}')
-                MyLog(logger, LogMessage, self)
+            if self.id != stub[0]:                          # Do not propagate to itself (should not happen, added security)
+                if (self.clock_events != None):             # Verify if in the logical clock case
+                    LogMessage = (
+                        f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.WITHDRAW)} request ID {request_id} '
+                        f'amount {amount} with clock {self.local_clock} to Branch {stub[0]} @{stub[1]}')
+                else:
+                    LogMessage = (
+                        f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.WITHDRAW)} request ID {request_id} '
+                        f'amount {amount} to Branch {stub[0]} @{stub[1]}')   
 
                 try:
+                    # if (self.clock_events != None):         # Verify if in the logical clock case
+                    #     clock_to_use = self.local_clock+1
+                    # else:
+                    #     clock_to_use = 0
+                    
                     msgStub = banking_pb2_grpc.BankingStub(grpc.insecure_channel(stub[1]))
                     response = msgStub.MsgDelivery(
                         banking_pb2.MsgDeliveryRequest(
@@ -277,14 +342,17 @@ class Branch(banking_pb2_grpc.BankingServicer):
                             OP=banking_pb2.WITHDRAW,
                             Amount=amount,
                             D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
-                            Clock=self.local_clock
+                            Clock=clock_to_use
                         )
                     )
-
                     LogMessage = (
                         f'[Branch {self.id}] received response to request ID {request_id} to Branch @{stub[1]} - '
                         f'Operation: {get_operation_name(banking_pb2.WITHDRAW)} - Result: {get_result_name(response.RC)} - '
-                        f'New balance: {response.Amount} - Clock: {response.Clock}')
+                        f'New balance: {response.Amount}')
+                    if (self.clock_events != None):         # Verify if in the logical clock case
+                        LogMessage += (f' - Clock: {response.Clock}')
+
+                    self.eventResponse()                    # Call for eventResponse
 
                 except grpc.RpcError as rpc_error_call:
                     code = rpc_error_call.code()
@@ -315,11 +383,12 @@ class Branch(banking_pb2_grpc.BankingServicer):
     #             self.stubList.append(banking_pb2_grpc.BankingStub(grpc.insecure_channel(branches_addresses_ids [i][1])))
 
     def eventReceive(self, passed_clock):
-        """ Implementation of sub-interface "eventReceive".            
-            This subevent happens when the Branch process receives a request
-            from the Customer process. The Branch process selects the larger
-            value between the local clock and the remote clock from the message,
-            and increments one from the selected value.  
+        """
+        Implementation of sub-interface "eventReceive".            
+        This subevent happens when the Branch process receives a request
+        from the Customer process. The Branch process selects the larger
+        value between the local clock and the remote clock from the message,
+        and increments one from the selected value.  
             
         Args:
             self:           Branch class
@@ -331,10 +400,11 @@ class Branch(banking_pb2_grpc.BankingServicer):
         self.local_clock = max(self.local_clock, passed_clock) + 1
 
     def eventExecute(self):
-        """ Implementation of sub-interface "eventExecute".
-            This subevent happens when the Branch process executes the event
-            after the subevent “Event Request”. The Branch process increments
-            one from its local clock.  
+        """
+        Implementation of sub-interface "eventExecute".
+        This subevent happens when the Branch process executes the event
+        after the subevent “Event Request”. The Branch process increments
+        one from its local clock.  
 
         Args:
             self:           Branch class
@@ -342,25 +412,27 @@ class Branch(banking_pb2_grpc.BankingServicer):
         Returns: None
 
         """
-        self.local_clock = self.local_clock + 1
+        self.local_clock += 1
 
     def propagateSend(self):
-        """ Interface to set the clock tick for "propagateSend".
-            This subevent happens when the Branch process receives the
-            propagation request to its fellow branch processes. The Branch
-            process increments one from its local clock.
+        """
+        Interface to set the clock tick for "propagateSend".
+        This subevent happens when the Branch process receives the
+        propagation request to its fellow branch processes. The Branch
+        process increments one from its local clock.
             
         Returns: None
 
         """
-        self.local_clock = self.local_clock + 1
+        self.local_clock += 1
 
     def propagateReceive(self, passed_clock):
-        """ Implementation of sub-interface "propagateReceive".
-            This subevent happens when the Branch receives the propagation request
-            from its fellow branches. The Branch process selects the biggest value
-            between the local clock and the remote clock from the message, and
-            increments one from the selected value.            
+        """
+        Implementation of sub-interface "propagateReceive".
+        This subevent happens when the Branch receives the propagation request
+        from its fellow branches. The Branch process selects the biggest value
+        between the local clock and the remote clock from the message, and
+        increments one from the selected value.            
             
         Args:
             self:           Branch class
@@ -372,49 +444,50 @@ class Branch(banking_pb2_grpc.BankingServicer):
         self.local_clock = max(self.local_clock, passed_clock) + 1
 
     def propagateExecute(self):
-        """ Interface to set the clock tick for "propagateExecute".
-            This subevent happens when the Branch process executes
-            the event after the subevent “Propogate_Request”. The
-            Branch process increments one from its local clock.          
+        """
+        Interface to set the clock tick for "propagateExecute".
+        This subevent happens when the Branch process executes the event after
+        the subevent “Propogate_Request”. The Branch process increments one
+        from its local clock.          
             
         Returns: None
 
         """
-        self.local_clock = self.local_clock + 1
+        self.local_clock += 1
 
     def eventResponse(self):
-        """ Interface to set the clock tick for "eventResponse".
-            This subevent happens after all the propagation
-            responses are returned from the branches. The branch
-            returns success - fail back to the Customer process.
-            The Branch process increments one from its local clock.
+        """
+        Interface to set the clock tick for "eventResponse".
+        This subevent happens after all the propagation  responses are returned
+        from the branches. The branch returns success - fail back to the
+        Customer process. The Branch process increments one from its local clock.
 
         Returns: None
 
         """
-        self.local_clock = self.local_clock + 1
+        self.local_clock += 1
 
+    def register_event(self, passed_id, passed_name):
+        """
+        Adds an event to the list of processed events by the branch process
 
+        Args:
+            self:           Branch class
+            passed_id:      Event ID to record
+            passed_name:    Event Name
+            passed_clock:   Local clock recorded
 
-    # def register_event(self, id_, name, clock):
-    #     """ Adds an event to the list of processed events by the branch process
+        Returns: None
 
-    #     Args:
-    #         id_: Event id
-    #         name: Event Name
-    #         clock: Clock tick
-
-    #     Returns: None
-
-    #     """
-    #     self.events.append({'id': id_, 'name': name, 'clock': clock})
-
-
+        """
+        if (self.clock_events != None):
+            self.clock_events.append({'id': passed_id, 'name': passed_name, 'clock': self.local_clock})
 
 def Wait_Loop(Branch):
-    """ Implements the main waiting loop for branches.
-        If PySimpleGUI/TK are installed, relies on user's interaction on graphical windows.
-        Otherwise, it waits for a day unless CTRL+C is pressed.
+    """
+    Implements the main waiting loop for branches.
+    If PySimpleGUI/TK are installed, relies on user's interaction on graphical windows.
+    Otherwise, it waits for a day unless CTRL+C is pressed.
 
     Args:
         Self:   Branch class
@@ -422,9 +495,7 @@ def Wait_Loop(Branch):
     Returns: none.
     
     """
-
-    if (sg != NotImplemented):
-        
+    if (sg != NotImplemented):        
         # Create an event loop
         while True:
             event, values = Branch.window.read()
@@ -443,37 +514,50 @@ def Wait_Loop(Branch):
 
 # Spawn the Branch process server
 #
-def Run_Branch(Branch, THREAD_CONCURRENCY):
-    """ Boot a server (branch) in a subprocess.
-        If PySimpleGUI/TK are installed, launches a window in the Windows' Manager.
+def Run_Branch(Branch, clock_file=None, THREAD_CONCURRENCY=1):
+    """
+    Boot a server (branch) in a subprocess.
+    If PySimpleGUI/TK are installed, launches a window in the Windows' Manager.
 
     Args:
         Branch:             Branch class
+        clock_file:         String, output file where to write the logical clock event.
+                            If set to None, works as it was Exercise 1 (gRPC) and does
+                            not use clocks.
         THREAD_CONCURRENCY: Integer, number of threads concurrency
 
     Returns: none.
     
     """
-
-    MyLog(logger,f'[Branch {Branch.id}] Initialising @{Branch.bind_address} with local clock {Branch.local_clock}...')
+    if (clock_file == None):
+        MyLog(logger,f'[Branch {Branch.id}] Initialising @{Branch.bind_address}...')
+    else:
+        MyLog(logger,f'[Branch {Branch.id}] Initialising @{Branch.bind_address} with local clock {Branch.local_clock}...')
 
     options = (('grpc.so_reuseport', 1),)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=THREAD_CONCURRENCY,), options=options)
-
     banking_pb2_grpc.add_BankingServicer_to_server(Branch, server)
 
     if (sg != NotImplemented):
-        layout = [
-            [sg.Text(f"Balance: {Branch.balance} - Local Clock: {Branch.local_clock}", size=(40,1), justification="left", key='-WINDOWTEXT-')],
-            [sg.Output(size=(90,15))],
-            [sg.Button("Close", tooltip='Terminates Branch')]
-        ]
+        if (clock_file == None):
+            layout = [
+                [sg.Text(f"Balance: {Branch.balance}", size=(40,1), justification="left", key='-WINDOWTEXT-')],
+                [sg.Output(size=(90,15))],
+                [sg.Button("Close", tooltip='Terminates Branch')]
+            ]
+        else:
+            layout = [
+                [sg.Text(f"Balance: {Branch.balance} - Local Clock: {Branch.local_clock}", size=(40,1), justification="left", key='-WINDOWTEXT-')],
+                [sg.Output(size=(90,15))],
+                [sg.Button("Close", tooltip='Terminates Branch')]
+            ]
 
         # Create the window
         sg.theme('Dark Blue 3')
-        Branch.window = sg.Window(f"Branch #{Branch.id} at Address {Branch.bind_address}"
+        w, h = sg.Window.get_screen_size()
+        Branch.window = sg.Window(f"Branch #{Branch.id} @Address {Branch.bind_address}"
             , layout
-            , location=(900+100*Branch.id, 100*Branch.id)
+            , location=(w/2+100*Branch.id, h/5*Branch.id)
         )
 
         Branch.window.refresh()
@@ -488,6 +572,17 @@ def Run_Branch(Branch, THREAD_CONCURRENCY):
 
     if (sg != NotImplemented):
         Branch.window.close()
+
+    if Branch.clock_output:
+        with open(f'{Branch.clock_output.name}', 'a') as outfile:
+            if (Branch.clock_events != None):
+                Branch.clock_events.sort(key=lambda item: item['clock'])
+                record = {'pid': Branch.id, 'data': Branch.clock_events}
+            else:
+                record = {'pid': Branch.id, 'data': []}
+            json.dump(record, outfile)
+            outfile.write('\n')
+            outfile.close()
 
     server.stop(None)
     

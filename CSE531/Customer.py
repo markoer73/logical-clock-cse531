@@ -10,7 +10,6 @@ Customer Class'''
 import time
 import datetime
 import multiprocessing
-#import array
 import json
 
 from concurrent import futures
@@ -19,8 +18,6 @@ from Util import setup_logger, MyLog, sg, get_operation, get_operation_name, get
 import grpc
 import banking_pb2
 import banking_pb2_grpc   
-
-#from Main import get_operation, get_operation_name, get_result_name
 
 ONE_DAY = datetime.timedelta(days=1)
 logger = setup_logger("Customer")
@@ -39,8 +36,6 @@ class Customer:
         self.stub = None
         # GUI Window handle, if used
         self.window = None
-        # Local logical clock
-        self.local_clock = 0
 
     # Create stub for the customer, matching them with their respective branch
     #
@@ -64,7 +59,6 @@ class Customer:
 
         if (sg != NotImplemented):
             layout = [
-                [sg.Text(f"Local Clock: {self.local_clock}", size=(40,1), justification="left", key='-WINDOWTEXT-')],
                 [sg.Text("Operations Loaded:", size=(60,1), justification="left")],
                 [sg.Listbox(values=self.events, size=(60, 3))],
                 [sg.Output(size=(80,12))],
@@ -95,11 +89,10 @@ class Customer:
             request_amount = event['money']
             
             try:
-
                 LogMessage = (
                     f'[Customer {self.id}] executing request: ID {request_id} against Branch - '
                     f'Operation: {get_operation_name(request_operation)} - '
-                    f'Initial balance: {request_amount} - Clock: {self.local_clock}')
+                    f'Initial balance: {request_amount}')
                 MyLog(logger, LogMessage, self)
 
                 response = self.stub.MsgDelivery(
@@ -108,14 +101,14 @@ class Customer:
                         OP=request_operation,
                         Amount=request_amount,
                         D_ID=self.id,
-                        Clock=self.local_clock
+#                        Clock=None
                     )
                 )
                 
                 LogMessage = (
                     f'[Customer {self.id}] Received response to request ID {request_id} from Branch - '
                     f'Operation: {get_operation_name(request_operation)} - Result: {get_result_name(response.RC)} - '
-                    f'New balance: {response.Amount} - Clock: {response.Clock}')
+                    f'New balance: {response.Amount}')
                 values = {
                     'interface': get_operation_name(request_operation),
                     'result': get_result_name(response.RC),

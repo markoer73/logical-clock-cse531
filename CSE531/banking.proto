@@ -10,18 +10,13 @@ package app;
 
 service Banking {
 	rpc MsgDelivery(MsgDeliveryRequest) returns (MsgDeliveryResponse) {}
-	rpc GetEvents(EventsRequest) returns (EventsResponse) {}
+//	rpc GetEvents(EventsRequest) returns (EventsResponse) {}
 }
 
 enum Operation {
 	QUERY 			= 0;		// Query amount of $$
 	DEPOSIT			= 1;		// Deposit amounf of $$
 	WITHDRAW		= 2;		// Withdraw amount of $$
-	EV_REQUEST		= 3;		// Event_Request operation - clock update
-	EV_EXECUTE		= 4;		// Event_Execute operation - clock update
-	PR_REQUEST		= 5;		// Propagate_Request operation - clock update
-	PR_EXECUTE		= 6;		// Propagate_EXECUTE operation - clock update
-	PR_RESPONSE		= 7;		// Propagate_Response operation - clock update
 }
 
 enum ReturnCode {
@@ -45,14 +40,14 @@ message MsgDeliveryResponse {
 	int64 Clock		= 4;		// Tick clock in the case of logical clock case
 }
 
-message EventsRequest {}
+// message EventsRequest {}
 
-message EventsResponse {
-	repeated Event events = 1;
-}
+// message EventsResponse {
+// 	repeated Event events = 1;
+// }
 
-message Event {
-	int64 id_ = 1;
-	string name = 2;
-	int64 clock = 3;
-}
+// message Event {
+// 	int64 id_ = 1;
+// 	string name = 2;
+// 	int64 clock = 3;
+// }
