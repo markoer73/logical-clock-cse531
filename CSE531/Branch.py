@@ -41,7 +41,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
         # the list of process IDs of the branches
         self.branches = branches
         # the list of Client stubs to communicate with the branches
- #       self.stubList = list()
+#        self.stubList = list()
         # a list of received messages used for debugging purpose
         self.recvMsg = list()
         # Binded address
@@ -245,7 +245,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
         self.balance = new_balance
         return banking_pb2.SUCCESS, new_balance
 
-    def Propagate_Deposit(self, request_id, amount, proposed_clock=0):
+    def Propagate_Deposit(self, request_id, amount):
         """
         Implements the propagation of the deposit to other branches.
 
@@ -259,32 +259,35 @@ class Branch(banking_pb2_grpc.BankingServicer):
         """
         for stub in self.branchList:
             if self.id != stub[0]:                          # Do not propagate to itself (should not happen, added security)
+                LogMessage = (
+                    f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.DEPOSIT)} request ID {request_id} '
+                    f'amount {amount} to Branch {stub[0]} @{stub[1]}')   
                 if (self.clock_events != None):             # Verify if in the logical clock case
-                    LogMessage = (
-                        f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.DEPOSIT)} request ID {request_id} '
-                        f'amount {amount} with clock {self.local_clock} to Branch {stub[0]} @{stub[1]}')
-                else:
-                    LogMessage = (
-                        f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.DEPOSIT)} request ID {request_id} '
-                        f'amount {amount} to Branch {stub[0]} @{stub[1]}')   
+                    LogMessage += (f' with clock {self.local_clock}')
                 MyLog(logger, LogMessage, self)
-                        
+                
                 try:
-                    # if (self.clock_events != None):         # Verify if in the logical clock case
-                    #     clock_to_use = self.local_clock+1
-                    # else:
-                    #     clock_to_use = 0
-                    
                     msgStub = banking_pb2_grpc.BankingStub(grpc.insecure_channel(stub[1]))
-                    response = msgStub.MsgDelivery(
-                        banking_pb2.MsgDeliveryRequest(
-                            REQ_ID=request_id,
-                            OP=banking_pb2.DEPOSIT,
-                            Amount=amount,
-                            D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
-                            Clock=clock_to_use
+                    
+                    if (self.clock_events != None):             # Verify if in the logical clock case
+                        response = msgStub.MsgDelivery(
+                            banking_pb2.MsgDeliveryRequest(
+                                REQ_ID=request_id,
+                                OP=banking_pb2.DEPOSIT,
+                                Amount=amount,
+                                D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
+                                Clock=self.local_clock
+                            )
                         )
-                    )
+                    else:
+                        response = msgStub.MsgDelivery(
+                            banking_pb2.MsgDeliveryRequest(
+                                REQ_ID=request_id,
+                                OP=banking_pb2.DEPOSIT,
+                                Amount=amount,
+                                D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
+                            )
+                        )
                     LogMessage = (
                         f'[Branch {self.id}] received response to request ID {request_id} to Branch @{stub[1]} - '
                         f'Operation: {get_operation_name(banking_pb2.DEPOSIT)} - Result: {get_result_name(response.RC)} - '
@@ -306,7 +309,7 @@ class Branch(banking_pb2_grpc.BankingServicer):
                 MyLog(logger, LogMessage, self)
 
 
-    def Propagate_Withdraw(self, request_id, amount, proposed_clock=0):
+    def Propagate_Withdraw(self, request_id, amount):
         """
         Implements the propagation of the withdraw to other branches.
 
@@ -320,31 +323,35 @@ class Branch(banking_pb2_grpc.BankingServicer):
         """        
         for stub in self.branchList:
             if self.id != stub[0]:                          # Do not propagate to itself (should not happen, added security)
+                LogMessage = (
+                    f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.WITHDRAW)} request ID {request_id} '
+                    f'amount {amount} to Branch {stub[0]} @{stub[1]}')
                 if (self.clock_events != None):             # Verify if in the logical clock case
-                    LogMessage = (
-                        f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.WITHDRAW)} request ID {request_id} '
-                        f'amount {amount} with clock {self.local_clock} to Branch {stub[0]} @{stub[1]}')
-                else:
-                    LogMessage = (
-                        f'[Branch {self.id}] Propagate {get_operation_name(banking_pb2.WITHDRAW)} request ID {request_id} '
-                        f'amount {amount} to Branch {stub[0]} @{stub[1]}')   
+                    LogMessage += (f' with clock {self.local_clock}')
+                MyLog(logger, LogMessage, self)
 
                 try:
-                    # if (self.clock_events != None):         # Verify if in the logical clock case
-                    #     clock_to_use = self.local_clock+1
-                    # else:
-                    #     clock_to_use = 0
-                    
                     msgStub = banking_pb2_grpc.BankingStub(grpc.insecure_channel(stub[1]))
-                    response = msgStub.MsgDelivery(
-                        banking_pb2.MsgDeliveryRequest(
-                            REQ_ID=request_id,
-                            OP=banking_pb2.WITHDRAW,
-                            Amount=amount,
-                            D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
-                            Clock=clock_to_use
+
+                    if (self.clock_events != None):             # Verify if in the logical clock case
+                        response = msgStub.MsgDelivery(
+                            banking_pb2.MsgDeliveryRequest(
+                                REQ_ID=request_id,
+                                OP=banking_pb2.WITHDRAW,
+                                Amount=amount,
+                                D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
+                                Clock=self.local_clock
+                            )
                         )
-                    )
+                    else:
+                        response = msgStub.MsgDelivery(
+                            banking_pb2.MsgDeliveryRequest(
+                                REQ_ID=request_id,
+                                OP=banking_pb2.WITHDRAW,
+                                Amount=amount,
+                                D_ID=DO_NOT_PROPAGATE,          # Sets DO_NOT_PROPAGATE for receiving branches
+                            )
+                        )
                     LogMessage = (
                         f'[Branch {self.id}] received response to request ID {request_id} to Branch @{stub[1]} - '
                         f'Operation: {get_operation_name(banking_pb2.WITHDRAW)} - Result: {get_result_name(response.RC)} - '

@@ -19,6 +19,7 @@ import socketserver
 import time
 import tempfile
 import os
+from operator import itemgetter, attrgetter
 
 from concurrent import futures
 from Branch import Branch, Run_Branch
@@ -220,12 +221,12 @@ def main():
             worker.join()
     except KeyboardInterrupt:
         MyLog(logger,"[Main] CTRL+C requested")
-#        for worker in workers:
-#            worker.terminate()
     
+    # Writes output file in the case of Logical Clock exercise
     if clock_file:
         records = []
         total_records = []
+        # Iterates through all branches' temporary files and loads events 
         for curr_branch in branches_list:
             if curr_branch.clock_output:
                 with open(f'{curr_branch.clock_output.name}', 'r') as infile:
@@ -233,12 +234,67 @@ def main():
                     total_records.append(records)
                 os.remove(curr_branch.clock_output.name)
         with open(f'{clock_file}', 'w+') as outfile:
+            # Writes events in output file ordered by branch/clock
             if (PRETTY_JSON):
                 json.dump(total_records, outfile, indent=2)
             else:
                 json.dump(total_records, outfile)
             outfile.write('\n')
+            # Writes events in output file ordered by event ID/clock
+            events = []
+            for curr_record in total_records:
+                for event in curr_record['data']:
+                    events.append(event)
+            events.sort(key=lambda x: x['clock'])
+            events.sort(key=lambda x: x['id'])
+            # Probably not very Pythonian, but I have given my best :-P (and it works)
+            curr_event_id = -1
+            curr_new_event = -1
+            new_events = []
+            for curr_record in events:
+                if curr_record['id'] != curr_event_id:
+                    curr_event_id = curr_record['id']
+                    curr_new_event += 1
+                    new_events.append("eventid:")
+                    new_events.append(curr_event_id)
+                    new_events.append("data")
+                new_events.append(
+                {
+                    'clock': curr_record['clock'],
+                    'name': curr_record['name'],
+                })
+            # Dumps the vent into the JSON file, one Event ID at the time
+            curr_event_id = -1
+            curr_new_event = -1
+            event_dict = {"eventid": int}
+            for curr_record in events:
+                if curr_record['id'] != curr_event_id:
+                    if (PRETTY_JSON):
+                        if (curr_event_id >= 0):
+                            json.dump(event_dict, outfile, indent=2)
+                    else:
+                        if (curr_event_id >= 0):
+                            json.dump(event_dict, outfile)
+                    curr_event_id = curr_record['id']
+                    curr_new_event += 1
+                    event_dict ["eventid"] = curr_event_id
+                    event_dict ["data"] = []
+                event_dict ["data"].append(
+                {
+                    'clock': curr_record['clock'],
+                    'name': curr_record['name'],
+                })
+
+            if (PRETTY_JSON):
+                json.dump(event_dict, outfile, indent=2)
+            else:
+                json.dump(event_dict, outfile)
+
             outfile.close()
+
+    # Just in case
+    for worker in workers:
+        worker.terminate()
 
     MyLog(logger, f'[Main] Program Ended successfully.')
 

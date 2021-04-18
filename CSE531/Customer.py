@@ -158,9 +158,10 @@ class Customer:
                         MyLog(logger,f'[Customer {self.id}] Closing windows.')
                         break
                     if wevent == "Run":
+                        MyLog(logger,f'[Customer {self.id}] Executing events...')
                         Customer.executeEvents(self, output_file)
-                        MyLog(logger,f'[Customer {self.id}] Exiting successfully.')
-                        #break
+                        MyLog(logger,f'[Customer {self.id}] Events executed. Exiting successfully.')
+                        break
 
                 self.window.close()
         else:
