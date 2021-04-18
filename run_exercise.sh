@@ -21,7 +21,7 @@ test -f logical_clock_branches1.json && rm logical_clock_branches1.json
 #../bin/python3 Main.py -i logical_clock1.json -o logical_clock_output1.json -c logical_clock_branches1.json -pTrue -wTrue
 
 # Lampard's logical clock - increased input file for stress test - no graphical interface - pretty print JSON
-#../bin/python3 Main.py -i logical_clock1.json -o logical_clock_output1.json -c logical_clock_branches1.json -pTrue -wFalse
+#../bin/python3 Main.py -i logical_clock2.json -o logical_clock_output2.json -c logical_clock_branches2.json -pTrue -wFalse
 
 #test -f logical_clock_output1.json && less logical_clock_output1.json
 #test -f logical_clock_branches1.json && less logical_clock_branches1.json
