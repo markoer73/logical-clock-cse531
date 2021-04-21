@@ -148,8 +148,8 @@ def main():
     for curr_branch in branches_list:
         worker = multiprocessing.Process(name=f'Branch-{curr_branch.id}', target=Run_Branch,
                                             args=(curr_branch,clock_file,_sg_windows,THREAD_CONCURRENCY))
-        worker.start()
         workers.append(worker)
+        worker.start()
 
         MyLog(logger, f'[Main] Booting branch \"{worker.name}\" on initial balance {curr_branch.balance}), '
                         f'with PID {worker.pid} at address {curr_branch.bind_address} successfully')
@@ -178,13 +178,13 @@ def main():
         
         worker = multiprocessing.Process(name=f'Customer-{curr_customer.id}', target=Customer.Run_Customer,
                                             args=(curr_customer,Branch_address,output_file,_sg_windows,THREAD_CONCURRENCY))
-        if (sg == NotImplemented and SLEEP_SECONDS):
+        if ((sg == NotImplemented or not(want_windows)) and SLEEP_SECONDS):
             # Wait some seconds before initialising the clients, to give time the servers to start
             MyLog(logger, f'[Main] *** Waiting for {SLEEP_SECONDS} seconds before starting the clients ***')
             MyLog(logger, f'[Main]     (Otherwise it will sometimes fail when the computer is slow)')
             time.sleep(SLEEP_SECONDS)
-        worker.start()
         workers.append(worker)
+        worker.start()
         
         MyLog(logger, f'[Main] Started Customer \"{worker.name}\" with PID {worker.pid} successfully.')
 
